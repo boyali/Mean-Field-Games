@@ -201,6 +201,10 @@ class HJB_LQR():
         self.time = np.arange(self.init_t,self.T+0.1*timestep,timestep) # time is discretised in 1000 points
         self.beta, self.phi, self.delta = None, None, None # this will store the functions beta(t), phi(t)
         self.solve_ode = solve_ode
+        if self.solve_ode:
+            self._system_odes()
+        else:
+            print("TODO")
     
     def _system_odes(self):
 
@@ -225,13 +229,11 @@ class HJB_LQR():
         C = math.sqrt(B)
         # TODO
         return 1    
-    
-    def _explicit_solution(self):
-        return 1
+
     
     def get_value_function(self,x): 
         if self.solve_ode:
-            self._system_odes()
+            #self._system_odes()
             res = (x**2)*self.beta + x*self.delta + self.phi
             return res
         else:
@@ -240,7 +242,7 @@ class HJB_LQR():
         
     def get_alpha(self, x):
         if self.solve_ode:
-            self._system_odes()
+            #self._system_odes()
             res = -self.c/self.c_f * self.beta * x
             return res
         else:
@@ -275,8 +277,22 @@ class HJB_LQR():
             y0 = y1
         return res
 
-    
-    
+
+
+# HJB
+init_t, T = 0,1
+timestep = 0.05
+xlim = (0,5)
+b=0.5 
+c=0.5 
+sigma=1 
+b_f=0.5 
+c_f=0.9
+gamma = 1
+LQR_sol = HJB_LQR(x_0=0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, gamma=gamma, T=T, init_t=init_t, solve_ode=True, timestep=timestep)
+x = np.linspace(0,100,101) 
+alpha = np.array([LQR_sol.get_alpha(x_i) for x_i in x])   
+
     
 
 
@@ -328,19 +344,7 @@ def compare_ode_implementations():
         
         
 def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep):
-#    x_0 = 1
-#    b = 1
-#    c = 1
-#    sigma = 1
-#    b_f = 1
-#    c_f = 100
-#    gamma = 100
-#    T = 10
-#    init_t = 0
-#    n_iterations = 20   
-#    solver = 'Euler'
-        
-        
+
     pol = Policy_Iteration_Euler(x_0=x_0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, 
                                  gamma=gamma, T=T, init_t =init_t, solver=solver, timestep=timestep)
     #pol = Policy_Iteration_Euler()
@@ -370,18 +374,19 @@ def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timeste
 
 
 if __name__=='__main__':
-    x_0 = 1
-    b = 1
-    c = 1
-    sigma = 1
-    b_f = 1
-    c_f = 1
-    gamma = 0
-    T = 10
-    init_t = 9
+    x_0 = 0
+    init_t, T = 0,1
+    timestep = 0.05
+    xlim = (0,5)
+    b=0.5 
+    c=0.5 
+    sigma=1 
+    b_f=0.5 
+    c_f=0.9
+    gamma = 1
     n_iterations = 50   
     solver = 'explicit'    
-    timestep = 0.0005
+    timestep = 0.05
     
     # new Policy Iteration
     pol, alphas, value_functions, diff_alphas, diff_value = iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)

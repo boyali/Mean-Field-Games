@@ -198,7 +198,7 @@ class PolicyIteration_DL():
         self._init_value_function()
         criterion = nn.MSELoss()
         base_lr = 0.9
-        n_iter = 5
+        n_iter = 10
         optimizer = torch.optim.LBFGS(self.value_function.parameters(),lr=base_lr, max_iter=10)    
         
         for it in range(n_iter):
@@ -227,7 +227,7 @@ class PolicyIteration_DL():
                 param_group['lr'] = lr
             optimizer.step(closure)
     
-    def improvement_step(self, epochs = 20):
+    def improvement_step(self, epochs = 30):
         self._init_alphas()
         for ind in range(len(self.timegrid)):
             # we train alpha_t
@@ -269,38 +269,34 @@ sigma=1
 b_f=0.5 
 c_f=0.9
 gamma = 1
+n_iter = 5
 
-pol = PolicyIteration_DL(init_t = init_t, T=T, timestep=timestep, xlim=xlim, batch_size = 20, b=b, c=c, sigma=sigma, 
+pol_DL = PolicyIteration_DL(init_t = init_t, T=T, timestep=timestep, xlim=xlim, batch_size = 20, b=b, c=c, sigma=sigma, 
                          b_f=b_f, c_f=c_f, gamma=gamma)
-alphas = []
-pol.evaluation_step()
-pol.improvement_step()
-alphas.append(pol.get_alpha())
+alphas_DL = []
+for it in range(n_iter):
+    pol_DL.evaluation_step()
+    pol_DL.improvement_step()
+    alphas_DL.append(pol_DL.get_alpha())
 
-pol.evaluation_step()
-pol.improvement_step()
-alphas.append(pol.get_alpha())
+   
+diff_alphas = [norm(alphas_DL[i+1]-alphas_DL[i]) for i in range(len(alphas_DL)-1)]        
 
-pol.evaluation_step()
-pol.improvement_step()
-alphas.append(pol.get_alpha())
+# we want to compare this solution with the explicit solution 
+# we will need to make some changes in how we compute the 
+# TODO: add original policy iteration here
 
-pol.evaluation_step()
-pol.improvement_step()
-alphas.append(pol.get_alpha())
+data = pol_DL.data_batch.data.numpy().astype('float64')
+terminal_data = pol_DL.terminal_points.data.numpy().astype('float64')
+data = np.concatenate([data, terminal_data], axis=0)
+data[:,0] = np.around(data[:,0], decimals=2)
+pol.time = np.around(pol.time, decimals=2)
+alpha_LQR_sol = []
+for row in data[:]:
+    t,x = row[0], row[1]
+    ind_t = np.where(LQR_sol.time==t)[0]
+    alpha_LQR = pol.get_alpha(x)[ind_t]
+    alpha_LQR_sol.append(alpha_LQR[0])
 
-pol.evaluation_step()
-pol.improvement_step()
-alphas.append(pol.get_alpha())
-
-
-    
-diff_alphas = [norm(alphas[i+1]-alphas[i]) for i in range(len(alphas)-1)]        
-        
-        
-        
-        
-
-
-
+alpha_LQR_sol = np.array(alpha_LQR_sol)
 
