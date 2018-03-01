@@ -269,11 +269,12 @@ sigma=1
 b_f=0.5 
 c_f=0.9
 gamma = 1
-n_iter = 5
+n_iter = 10
 
 pol_DL = PolicyIteration_DL(init_t = init_t, T=T, timestep=timestep, xlim=xlim, batch_size = 20, b=b, c=c, sigma=sigma, 
                          b_f=b_f, c_f=c_f, gamma=gamma)
 alphas_DL = []
+alphas_DL.append(pol_DL.get_alpha())
 for it in range(n_iter):
     pol_DL.evaluation_step()
     pol_DL.improvement_step()
