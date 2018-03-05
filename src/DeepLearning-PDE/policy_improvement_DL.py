@@ -8,7 +8,7 @@ from functools import reduce
 import shutil
 import time
 from numpy.linalg import norm
-
+import matplotlib.pyplot as plt
 
 
 class AverageMeter(object):
@@ -198,7 +198,7 @@ class PolicyIteration_DL():
         self._init_value_function()
         criterion = nn.MSELoss()
         base_lr = 0.9
-        n_iter = 10
+        n_iter = 4
         optimizer = torch.optim.LBFGS(self.value_function.parameters(),lr=base_lr, max_iter=10)    
         
         for it in range(n_iter):
@@ -227,7 +227,7 @@ class PolicyIteration_DL():
                 param_group['lr'] = lr
             optimizer.step(closure)
     
-    def improvement_step(self, epochs = 30):
+    def improvement_step(self, epochs = 20):
         self._init_alphas()
         for ind in range(len(self.timegrid)):
             # we train alpha_t
@@ -291,13 +291,28 @@ data = pol_DL.data_batch.data.numpy().astype('float64')
 terminal_data = pol_DL.terminal_points.data.numpy().astype('float64')
 data = np.concatenate([data, terminal_data], axis=0)
 data[:,0] = np.around(data[:,0], decimals=2)
-pol.time = np.around(pol.time, decimals=2)
+
+hjb = HJB_LQR(b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, gamma=gamma, T=T, init_t = init_t, solve_ode=True, timestep=0.00001)
+hjb.time = np.around(hjb.time, decimals=5)
 alpha_LQR_sol = []
 for row in data[:]:
     t,x = row[0], row[1]
-    ind_t = np.where(LQR_sol.time==t)[0]
-    alpha_LQR = pol.get_alpha(x)[ind_t]
+    ind_t = np.where(hjb.time==t)[0]
+    alpha_LQR = hjb.get_alpha(x)[ind_t]
     alpha_LQR_sol.append(alpha_LQR[0])
 
 alpha_LQR_sol = np.array(alpha_LQR_sol)
+alpha_LQR_sol[-10:]
+alphas_DL[0][-10:]
+
+
+norms = np.array([1/alpha_DL.shape[0]*norm(alpha_LQR_sol-alpha_DL)**2 for alpha_DL in alphas_DL])
+iteration = np.arange(len(norms))
+fig =plt.figure()
+ax = fig.add_subplot(111)
+ax.plot(iteration, norms, 'b-o')
+ax.set_xlabel('iteration')
+ax.set_ylabel('Mean Squared Error')
+plt.show()
+fig.savefig('DL_MSE.png')    
 
