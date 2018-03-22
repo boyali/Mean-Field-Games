@@ -400,8 +400,19 @@ def main():
         
     n_iter = 500
     step_size = 0.0001
+    momentum = 0.1
+    v_b_f = 0
+    v_c_f = 0
+    v_gamma = 0
+    
+    list_b_f = [b_f]
+    list_c_f = [c_f]
+    list_gamma = [gamma]
+    list_J = []
     
     for it in range(n_iter):
+        if it>100: momentum = 0.5
+        if it>200: momentum = 0.9
         pol_pred, alphas_pred, value_functions_pred, diff_alphas, diff_value, grad_value = iterate(x_0, b, c, sigma, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
     
         J = mean_squared_error(value_functions[-1].ravel(), value_functions_pred[-1].ravel())
@@ -409,17 +420,37 @@ def main():
         
         print("it: [{}/{}], J = {:.3f}, b_f = {:.3f}, c_f = {:.3f}, gamma = {:.3f}".format(it, n_iter, J, b_f, c_f, gamma))
         
+        # we get the gradients
         dJ_dbf = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[0].ravel()
         dJ_dbf = np.sum(dJ_dbf)
-        b_f = b_f - step_size*dJ_dbf
+        # learning step
+        #b_f = b_f - step_size*dJ_dbf
+        v_b_f = momentum*v_b_f + step_size*dJ_dbf
+        b_f = b_f - v_b_f
         
+        # we get the gradients
         dJ_dcf = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[1].ravel()
         dJ_dcf = np.sum(dJ_dcf)
-        c_f = c_f - step_size*dJ_dcf
+        # learning step
+        #c_f = c_f - step_size*dJ_dcf
+        v_c_f = momentum*v_c_f + step_size*dJ_dcf
+        c_f = c_f - v_c_f
         
+        # we get the gradients
         dJ_dgamma = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[2].ravel()
         dJ_dgamma = np.sum(dJ_dgamma)
-        gamma = gamma - step_size*dJ_dgamma
+        # learning step
+        #gamma = gamma - step_size*dJ_dgamma
+        v_gamma = momentum*v_gamma + step_size*dJ_dgamma
+        gamma = gamma - v_gamma
+        
+        list_b_f.append(b_f)
+        list_c_f.append(c_f)
+        list_gamma.append(gamma)
+        list_J.append(J)
+        
+        
+    
         
         
             
