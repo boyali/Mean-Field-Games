@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import random
+from sklearn.metrics import mean_squared_error
+from numpy.linalg import norm
 #PATH_IMAGES = '/Users/msabate/Projects/Turing/Mean-Field-Games/images' # save this
 
 
@@ -60,7 +62,7 @@ class Policy_Iteration_grad():
         res = (x**2)*beta_array + x*delta_array + phi_array
         return res
     
-    def get_grad_value_funciton(self,x):
+    def get_grad_value_function(self,x):
         res_grad_bf = (x**2)*self.grad_beta[0] + x*self.grad_delta[0] + self.grad_phi[0]
         res_grad_cf = (x**2)*self.grad_beta[1] + x*self.grad_delta[1] + self.grad_phi[1]
         res_grad_gamma = (x**2)*self.grad_beta[2] + x*self.grad_delta[2] + self.grad_phi[2]
@@ -337,9 +339,9 @@ class Policy_Iteration_grad():
 
         
 
-def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep):
+def iterate(x_0, b, c, sigma, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep):
 
-    pol = Policy_Iteration_Euler(x_0=x_0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, 
+    pol = Policy_Iteration_grad(x_0=x_0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, 
                                  gamma=gamma, T=T, init_t =init_t, solver=solver, timestep=timestep)
     #pol = Policy_Iteration_Euler()
     x = np.linspace(0,10,10)
@@ -352,7 +354,7 @@ def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timeste
     alphas.append(alpha)
     
     for i in range(n_iterations):
-        print('iteration = {}'.format(i))
+        #print('iteration = {}'.format(i))
         if i == n_iterations-1:
             pol.get_grad=True
         pol.evaluation_step()
@@ -364,7 +366,12 @@ def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timeste
     diff_alphas = [norm(alphas[i+1]-alphas[i], ord='fro') for i in range(len(alphas)-1)]
     diff_value = [norm(value_functions[i+1]-value_functions[i], ord='fro') for i in range(len(value_functions)-1)]
     
-    return pol, alphas, value_functions, diff_alphas, diff_value
+    
+    dvalue_dbf = np.array([pol.get_grad_value_function(x_i)[0] for x_i in x])
+    dvalue_dcf = np.array([pol.get_grad_value_function(x_i)[1] for x_i in x])
+    dvalue_dgamma = np.array([pol.get_grad_value_function(x_i)[2] for x_i in x])
+    
+    return pol, alphas, value_functions, diff_alphas, diff_value, (dvalue_dbf,dvalue_dcf,dvalue_dgamma)
   
 def main():
     x_0 = 0
@@ -382,17 +389,38 @@ def main():
     timestep = 0.05
     
     # Target policy
-    pol, alphas, value_functions, _, _ = iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
+    pol, alphas, value_functions, diff_alphas, diff_value, _ = iterate(x_0, b, c, sigma, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
     
     # Gradient Descent
     # 1. we start with random values for b_f, c_f, gamma
     b_f = random.gauss(0,1)
-    c_f = random.gauus(0,1)
+    c_f = random.gauss(0,1)
     gamma = random.gauss(0,1)
+    print("b_f = {:.3f}, c_f = {:.3f}, gamma = {:.3f}".format(b_f, c_f, gamma))
+        
+    n_iter = 500
+    step_size = 0.0001
     
-    pol_pred, alphas_pred, value_functions_pred, _, _ = iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
-
-    J = norm(value_functions_pred[-1] - value_functions[-1])
+    for it in range(n_iter):
+        pol_pred, alphas_pred, value_functions_pred, diff_alphas, diff_value, grad_value = iterate(x_0, b, c, sigma, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
+    
+        J = mean_squared_error(value_functions[-1].ravel(), value_functions_pred[-1].ravel())
+        length_data = np.size(value_functions[-1])
+        
+        print("it: [{}/{}], J = {:.3f}, b_f = {:.3f}, c_f = {:.3f}, gamma = {:.3f}".format(it, n_iter, J, b_f, c_f, gamma))
+        
+        dJ_dbf = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[0].ravel()
+        dJ_dbf = np.sum(dJ_dbf)
+        b_f = b_f - step_size*dJ_dbf
+        
+        dJ_dcf = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[1].ravel()
+        dJ_dcf = np.sum(dJ_dcf)
+        c_f = c_f - step_size*dJ_dcf
+        
+        dJ_dgamma = 2/length_data*(value_functions_pred[-1].ravel()-value_functions[-1].ravel())*grad_value[2].ravel()
+        dJ_dgamma = np.sum(dJ_dgamma)
+        gamma = gamma - step_size*dJ_dgamma
+        
         
             
         
