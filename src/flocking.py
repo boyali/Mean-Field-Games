@@ -4,21 +4,23 @@ Flocking model
 import math
 import numpy as np
 import random
-
+import os
 
 # eq 2.51 of 'Probabilistic Theory of Mean Field Games with Applications' with optimal alphas
 class flocking_model():
     
-    def __init__(self, N=100, h=1, kappa=1, sigma=0.01, T=100):
+    def __init__(self, N=100, h=1, kappa=1, sigma=0.01, T=100, dim=3):
         self.N = N
         self.h = h
         self.kappa = kappa
         self.sigma = sigma
         self.T = T
+        self.dim = dim
         self.states = self.init_markov()
         self.alphas = np.zeros((self.N, int(self.T/self.h)-1))
         self.Wiener = np.zeros((self.N, int(self.T/self.h)-1))
         self.etas = np.zeros(int(self.T/self.h)-1)
+        
 
     def eta(self, t):
         val = self.kappa*(math.sqrt(self.N/(self.N-1)))
@@ -27,14 +29,14 @@ class flocking_model():
         return val
     
     def next_state(self, x, t):
-        xi = np.random.normal(loc=0, scale=1, size=3)
+        xi = np.random.normal(loc=0, scale=1, size=self.dim)
         mean_states_t = np.apply_along_axis(np.mean, 0, self.states[:,t,:])
         next_x = x - self.eta(t)*(1-1/self.N)*(x-mean_states_t)*self.h + self.sigma*xi*math.sqrt(self.h)
         return next_x
     
     def init_markov(self):
-        states = np.zeros((self.N, int(self.T/self.h),3))
-        states[:,0] = np.random.normal(loc=0, scale=0.3, size=(self.N,3))
+        states = np.zeros((self.N, int(self.T/self.h),self.dim))
+        states[:,0] = np.random.normal(loc=0, scale=2, size=(self.N,self.dim))
         return states
     
 #    def get_alpha(self,i,t):
@@ -50,7 +52,7 @@ class flocking_model():
                 
 
 # example
-flocking_mdp = flocking_model(N=50, h=0.05, kappa=1, sigma=0.2, T=100)
+flocking_mdp = flocking_model(N=50, h=0.05, kappa=1, sigma=0.2, T=100, dim=3)
 #flocking_mdp.states[:,0,:]
 x1 = flocking_mdp.next_state(flocking_mdp.states[0,0,:],0)
 flocking_mdp.simulate_mdp()
@@ -135,6 +137,46 @@ anim = animation.FuncAnimation(fig, animate, init_func=init,
 anim.save('basic_animation.mp4', fps=10, extra_args=['-vcodec', 'libx264'])
 
 plt.show()
+
+
+
+
+
+##### PLOTS
+os.chdir('/Users/msabate/Projects/Turing/Mean-Field-Games/images')
+# example with just one dimension to see evolution over time
+flocking_mdp = flocking_model(N=10, h=1, kappa=1, sigma=0.2, T=10, dim=1)
+#flocking_mdp.states[:,0,:]
+x1 = flocking_mdp.next_state(flocking_mdp.states[0,0,:],0)
+flocking_mdp.simulate_mdp()
+flocking_mdp.states[:,-1,:]
+
+
+
+states = flocking_mdp.states.reshape(flocking_mdp.states.shape[0], flocking_mdp.states.shape[1])
+
+
+from matplotlib import colors as mcolors
+from scipy.interpolate import spline
+
+fig, ax = plt.subplots(figsize=(8, 5))
+timegrid = np.arange(0,10,1)
+for row in range(states.shape[0]):
+    xnew = np.linspace(0,9,200)
+    states_smooth = spline(timegrid, states[row,:],xnew)
+    ax.plot(xnew, states_smooth)
+ax.set_xlabel('time')
+ax.set_ylabel('state')
+fig.savefig('flocking_model_10players.png')
+    
+    
+    
+
+fig, ax = plt.subplots(figsize=(8, 5))
+for row in range(states.shape[0]):
+    ax.plot(states[row,:])
+
+
 
 
 
