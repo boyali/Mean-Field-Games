@@ -411,7 +411,7 @@ def main():
     list_J = []
     
     for it in range(n_iter):
-        if it>100: momentum = 0.5
+        if it>100: momentum = 0.9
         if it>200: momentum = 0.9
         pol_pred, alphas_pred, value_functions_pred, diff_alphas, diff_value, grad_value = iterate(x_0, b, c, sigma, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep)
     
@@ -448,10 +448,24 @@ def main():
         list_c_f.append(c_f)
         list_gamma.append(gamma)
         list_J.append(J)
+    
+    len(list_b_f)
+    b_f_array = np.array(list_b_f)
+    c_f_array = np.array(list_c_f)
+    gamma_array = np.array(list_gamma)
+    fig, ax = plt.subplots(figsize=(8, 5))
+    ax.plot(b_f_array, '-', label="b_f")
+    ax.plot(c_f_array, '-', label="c_f")
+    ax.plot(gamma_array, '-', label="gamma")
+    ax.legend()
+    ax.set_xlabel('iterations')
+    ax.set_ylabel('value')
+    fig.savefig('IRL_LQR.png')
+        
         
         
     
-        
+
         
             
         
