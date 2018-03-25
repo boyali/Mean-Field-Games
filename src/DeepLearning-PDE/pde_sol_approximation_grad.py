@@ -27,6 +27,26 @@ class Model_alpha(nn.Module):
         output = self.h1_o(h1)
         return output
 
+class Model_alpha_tx(nn.Module):
+    """
+    Model of alpha with (t,x) input
+    """
+    def __init__(self):
+        super(Model_alpha_tx, self).__init__()
+        self.i_h1 = nn.Sequential(nn.Linear(2,10),
+                                  nn.BatchNorm1d(10),
+                                  nn.ReLU())
+        self.h1_h2 = nn.Sequential(nn.Linear(10,10),
+                                   nn.BatchNorm1d(10),
+                                   nn.ReLU())
+        self.h2_o = nn.Linear(10,1,bias=True)
+    
+    def forward(self,x):
+        h1 = self.i_h1(x)
+        h2 = self.h1_h2(h1)
+        output = self.h2_o(h2)
+        return output
+
 
 
 #We do a first example wit alpha = 0.5*x
