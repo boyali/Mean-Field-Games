@@ -202,13 +202,13 @@ class major_minor_LQR_MFG():
     def _init_x_bar(self):
         self.x_bar = np.zeros_like(self.timegrid)
         
-    def major_player(self):
+    def major_player(self, batch_size=200):
         model = Net_stacked_major(dim=1, b=self.b_major, b_bar=self.b_bar_major, 
                                   x_bar=self.x_bar, c=self.c_major, sigma=self.sigma, 
                                   b_f=self.b_f_major, b_f_bar=self.b_f_bar_major, eta=self.eta_major, 
                                   c_f=self.c_f_major, timegrid=self.timegrid)
         model.train()
-        batch_size = 30
+        #batch_size = 120
         base_lr = 0.1
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
         criterion = torch.nn.MSELoss()
@@ -217,6 +217,9 @@ class major_minor_LQR_MFG():
         #v0 = []
         
         for it in range(n_iter):
+            lr = base_lr * (0.5 ** (it // 25))
+            for param_group in optimizer.state_dict()['param_groups']:
+                param_group['lr'] = lr
             optimizer.zero_grad()
             x0 = 0
             input = torch.ones([batch_size, 1])*x0
@@ -233,7 +236,7 @@ class major_minor_LQR_MFG():
         self.major_player_value.append(model)
         return model
     
-    def minor_player(self, major_player_model):
+    def minor_player(self, major_player_model, batch_size=200):
         model = Net_stacked_minor(dim=1, b_minor=self.b_minor, b_bar_minor=self.b_bar_minor, 
                                   x_bar=self.x_bar, c_minor=self.c_minor, q_minor=self.q_minor,
                                   b_major=self.b_major, b_bar_major=self.b_bar_major, c_major=self.c_major,
@@ -241,7 +244,7 @@ class major_minor_LQR_MFG():
                                   eta=self.eta_minor, c_f=self.c_f_minor, timegrid=self.timegrid,
                                   net_major = major_player_model)
         model.train()
-        batch_size = 30
+        #batch_size = 120
         base_lr = 0.1
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
         criterion = torch.nn.MSELoss()
@@ -250,6 +253,9 @@ class major_minor_LQR_MFG():
         #v0 = []
         
         for it in range(n_iter):
+            lr = base_lr * (0.5 ** (it // 25))
+            for param_group in optimizer.state_dict()['param_groups']:
+                param_group['lr'] = lr
             optimizer.zero_grad()
             x0 = 0
             input = torch.ones([batch_size, 1])*x0
@@ -270,6 +276,8 @@ class major_minor_LQR_MFG():
         sims = []
         
         for simul in range(n_simulations):
+            if simul%50 == 0:
+                print('updating law... Simulation {}/{}'.format(simul, n_simulations))
             x0 = 0
             input = torch.ones([1, 1])*x0
             input = Variable(input)
@@ -288,12 +296,12 @@ def main():
     b_major = 0
     b_bar_major=0.5 
     c_major = 1
-    sigma=1
+    sigma=0.1
     b_f_major = 1
     b_f_bar_major = 0.5
     init_t = 0
     T = 5
-    timestep = 0.1
+    timestep = 0.05
     timegrid = np.arange(init_t, T+timestep/2, timestep)
     eta_major = np.sin(timegrid*2*np.pi)
     c_f_major=1
@@ -302,7 +310,7 @@ def main():
     k = 0.2
     b_bar_minor = 0.5
     c_minor = 1
-    q_minor = 0.1
+    q_minor = 0
     b_f_minor = 1
     b_f_bar_minor = 0.8
     eta_minor = np.zeros_like(eta_major)
@@ -314,12 +322,13 @@ def main():
                                c_minor, q_minor, b_f_minor, b_f_bar_minor, eta_minor, c_f_minor, 
                                gamma_minor,init_t, T, timestep)
     
-    major_player_model = game.major_player()
-    minor_player_model = game.minor_player(major_player_model)
-    game.update_law(minor_player_model)
+    major_player_model = game.major_player(batch_size=300)
+    minor_player_model = game.minor_player(major_player_model, batch_size=300)
+    game.update_law(minor_player_model, n_simulations=1500)
     
     plt.plot(game.x_bar)
-
+    plt.plot(game.eta_major)
+    
 
 
     x0 = 0
