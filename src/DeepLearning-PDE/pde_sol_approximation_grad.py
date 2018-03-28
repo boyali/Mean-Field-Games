@@ -89,25 +89,27 @@ class Net_stacked(nn.Module):
     
     def forward(self, x):
         
-        for i in range(1,len(self.timegrid)-1):
+        for i in range(0,len(self.timegrid)-1):
             
-            h = self.timegrid[i]-self.timegrid[i-1]
+            h = self.timegrid[i+1]-self.timegrid[i]
             xi = torch.sqrt(h)*Variable(torch.randn(x.data.size()))
             #print('i={}\t x.size={}\t xi.size={}'.format(i,x.data.size(),xi.data.size()))
             alpha = -0.5*x + 0.1
             
-            h1 = self.i_h1[i-1](x)
-            h2 = self.h1_h2[i-1](h1)
-            grad = self.h2_o[i-1](h2)
             
             # we update value function
-            if i == 1:
+            if i == 0:
                 v = self.v0 - (self.b_f*x**2 + self.c_f*alpha**2)*h + self.grad_v0*self.sigma*xi
             else:
+                h1 = self.i_h1[i-1](x)
+                h2 = self.h1_h2[i-1](h1)
+                grad = self.h2_o[i-1](h2)
+
                 v = v - (self.b_f*x**2 + self.c_f*alpha**2)*h + grad*self.sigma*xi
             
             # we update x
             x = x + (self.b*x + self.c*alpha) * h + self.sigma*xi
+            #print('x={}, sigma={}, alpha={}, xi={}'.format(x.data, self.sigma, alpha.data, xi.data))
         
         return v, x
     
@@ -174,6 +176,7 @@ class Net_stacked_modified(nn.Module):
             
             # we update x
             x = x + (self.b*x + self.c*alpha) * h + self.sigma*xi
+            
         
         return v, x
     
@@ -205,10 +208,6 @@ def train():
     v0 = []
     
     for it in range(n_iter):
-#        lr = base_lr*(0.5**(it//500))
-#        for param_group in optimizer.state_dict()['param_groups']:
-#            param_group['lr'] = lr
-        
         optimizer.zero_grad()
         x0 = 10
         input = torch.ones([batch_size, 1])*x0
