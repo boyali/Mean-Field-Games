@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import numpy as np
 import copy
+from numpy.linalg import norm
 
 
 
@@ -169,8 +170,8 @@ class Net_stacked_minor(nn.Module):
     
 class major_minor_LQR_MFG():
     
-    def __init__(self,b_major, b_bar_major, c_major, sigma, b_f_major, b_f_bar_major, eta_major, c_f_major, gamma_major,
-                 b_minor, k, b_bar_minor, c_minor, q_minor, b_f_minor, b_f_bar_minor, eta_minor, c_f_minor, gamma_minor,
+    def __init__(self,b_major, b_bar_major, c_major, sigma, b_f_major, b_f_bar_major, eta_major, c_f_major, gamma_major, gamma_bar_major,
+                 b_minor, k, b_bar_minor, c_minor, q_minor, b_f_minor, b_f_bar_minor, eta_minor, c_f_minor, gamma_minor, gamma_bar_minor,
                  init_t, T, timestep):
         self.b_major = b_major
         self.b_bar_major = b_bar_major
@@ -181,6 +182,7 @@ class major_minor_LQR_MFG():
         self.eta_major = eta_major
         self.c_f_major = c_f_major
         self.gamma_major = gamma_major
+        self.gamma_bar_major = gamma_bar_major
         self.b_minor = b_minor
         self.k = k
         self.b_bar_minor = b_bar_minor
@@ -191,6 +193,7 @@ class major_minor_LQR_MFG():
         self.eta_minor = eta_minor
         self.c_f_minor = c_f_minor
         self.gamma_minor = gamma_minor
+        self.gamma_bar_minor = gamma_bar_minor
         self.init_t = init_t
         self.T= T
         self.timestep = timestep
@@ -202,7 +205,7 @@ class major_minor_LQR_MFG():
     def _init_x_bar(self):
         self.x_bar = np.zeros_like(self.timegrid)
         
-    def major_player(self, batch_size=200):
+    def major_player(self, batch_size=200, n_iter=100):
         model = Net_stacked_major(dim=1, b=self.b_major, b_bar=self.b_bar_major, 
                                   x_bar=self.x_bar, c=self.c_major, sigma=self.sigma, 
                                   b_f=self.b_f_major, b_f_bar=self.b_f_bar_major, eta=self.eta_major, 
@@ -213,7 +216,7 @@ class major_minor_LQR_MFG():
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
         criterion = torch.nn.MSELoss()
         
-        n_iter = 100
+        #n_iter = 100
         #v0 = []
         
         for it in range(n_iter):
@@ -225,7 +228,7 @@ class major_minor_LQR_MFG():
             input = torch.ones([batch_size, 1])*x0
             input = Variable(input)
             output, x_T, _, _, _ = model(input)
-            target = self.gamma_major*x_T**2
+            target = 0.5*(self.gamma_major*x_T-self.gamma_bar_major*self.x_bar[-1])**2
             target = Variable(target.data, requires_grad=False)  # we don't want to create a loop, as alpha also depends on the parameters, and target depends on alpha
             loss = criterion(output, target)
             loss.backward()
@@ -236,7 +239,7 @@ class major_minor_LQR_MFG():
         self.major_player_value.append(model)
         return model
     
-    def minor_player(self, major_player_model, batch_size=200):
+    def minor_player(self, major_player_model, batch_size=200, n_iter=100):
         model = Net_stacked_minor(dim=1, b_minor=self.b_minor, b_bar_minor=self.b_bar_minor, 
                                   x_bar=self.x_bar, c_minor=self.c_minor, q_minor=self.q_minor,
                                   b_major=self.b_major, b_bar_major=self.b_bar_major, c_major=self.c_major,
@@ -249,7 +252,7 @@ class major_minor_LQR_MFG():
         optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
         criterion = torch.nn.MSELoss()
         
-        n_iter = 100
+        #n_iter = 100
         #v0 = []
         
         for it in range(n_iter):
@@ -261,7 +264,7 @@ class major_minor_LQR_MFG():
             input = torch.ones([batch_size, 1])*x0
             input = Variable(input)
             output, x_T, _ = model(input)
-            target = self.gamma_major*x_T**2
+            target = 0.5*(self.gamma_minor*x_T-self.gamma_bar_minor*self.x_bar[-1])**2
             target = Variable(target.data, requires_grad=False) # we don't want to create a loop, as alpha also depends on the parameters, and target depends on alpha
             loss = criterion(output, target)
             loss.backward()
@@ -294,50 +297,96 @@ def main():
     MFG LQR using Deep Learning (OH GOD)
     """
     b_major = 0
-    b_bar_major=0.5 
+    b_bar_major=0 
     c_major = 1
-    sigma=0.1
+    sigma=0.05
     b_f_major = 1
     b_f_bar_major = 0.5
     init_t = 0
     T = 5
     timestep = 0.05
     timegrid = np.arange(init_t, T+timestep/2, timestep)
-    eta_major = np.sin(timegrid*2*np.pi)
-    c_f_major=1
-    gamma_major = 0.5
+    eta_major = (1/(1+np.exp(-timegrid))-0.5)*6 #np.sin(timegrid*np.pi)
+    c_f_major=0.5
+    gamma_major = 0#1
+    gamma_bar_major = 0#0.1
     b_minor = 0
-    k = 0.2
+    k = 0.8
     b_bar_minor = 0.5
     c_minor = 1
-    q_minor = 0
+    q_minor = 1.5
     b_f_minor = 1
     b_f_bar_minor = 0.8
-    eta_minor = np.zeros_like(eta_major)
+    eta_minor = (1/(1+np.exp(-timegrid))-0.5)*0.5
     c_f_minor = 1
-    gamma_minor = 1
+    gamma_minor = 0#1
+    gamma_bar_minor = 0#0.5
+    law = []
+    game = major_minor_LQR_MFG(b_major=b_major, b_bar_major=b_bar_major, c_major=c_major, sigma=sigma, 
+                               b_f_major=b_f_major, b_f_bar_major=b_f_bar_major, eta_major=eta_major, 
+                               c_f_major=c_f_major, gamma_major=gamma_major, gamma_bar_major=gamma_bar_major, 
+                               b_minor=b_minor, k=k, b_bar_minor=b_bar_minor, c_minor=c_minor, q_minor=q_minor, 
+                               b_f_minor=b_f_minor, b_f_bar_minor=b_f_bar_minor, eta_minor=eta_minor, 
+                               c_f_minor=c_f_minor, gamma_minor=gamma_minor, gamma_bar_minor=gamma_bar_minor, 
+                               init_t=init_t, T=T, timestep=timestep)
     
-    game = major_minor_LQR_MFG(b_major, b_bar_major, c_major, sigma, b_f_major, b_f_bar_major, 
-                               eta_major, c_f_major, gamma_major, b_minor, k, b_bar_minor, 
-                               c_minor, q_minor, b_f_minor, b_f_bar_minor, eta_minor, c_f_minor, 
-                               gamma_minor,init_t, T, timestep)
+    law.append(game.x_bar)
+    for i in range(10):
     
-    major_player_model = game.major_player(batch_size=300)
-    minor_player_model = game.minor_player(major_player_model, batch_size=300)
-    game.update_law(minor_player_model, n_simulations=1500)
+        major_player_model = game.major_player(batch_size=900,n_iter=450)
+        minor_player_model = game.minor_player(major_player_model, batch_size=900,n_iter=100)
+        game.update_law(minor_player_model, n_simulations=500)
+        law.append(game.x_bar)
     
     plt.plot(game.x_bar)
     plt.plot(game.eta_major)
+    plt.plot(game.eta_minor)
     
-
+    
+    [norm(law[i]-law[i-1]) for i in range(1,len(law))]
 
     x0 = 0
     input = torch.ones([1, 1])*x0
     input = Variable(input)
     v, x, path = minor_player_model(input)
     x_minor = np.concatenate([x.data[0].numpy() for x in path])
+    plt.plot(x_minor)
     
     v, x, path, grad_path, dW = major_player_model(input)
+    x_major = np.concatenate([x.data[0].numpy() for x in path])
+    plt.plot(x_major)
+    plt.plot(game.eta_major)
+    
+    
+    # plots results
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.plot(timegrid, x_major, '-', label='major player state')
+    ax1.plot(timegrid, game.eta_major, label='major player goal')
+    #ax1.plot(timegrid, x_minor, label='minor player state')
+    ax1.legend()
+    ax1.set_xlabel('time')
+    fig.savefig('major_player_state_MFG_LQR.png')
+    
+    
+    
+    x_minor = []
+    for i in range(5):
+        v, x, path = minor_player_model(input)
+        x_minor.append(np.concatenate([x.data[0].numpy() for x in path]))
+    
+    fig2 = plt.figure()
+    ax2 = fig2.add_subplot(111)
+    for i in range(3):
+        ax2.plot(timegrid, x_minor[i], label='player '+str(i+1))
+    ax2.legend()
+    ax2.set_xlabel('time')
+    ax2.set_ylabel('minor players state')
+    fig2.savefig('minor_player_state_MFG_LQR.png')
+    
+    
+    
+    
 #
 #
 #    
