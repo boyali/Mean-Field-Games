@@ -13,51 +13,18 @@ import copy
 
 
 
-class Model_alpha(nn.Module):
-    """
-    Model of alpha for each t in timegrid
-    """    
-    def __init__(self):
-        super(Model_alpha, self).__init__()
-        self.i_h1 = nn.Sequential(nn.Linear(1,10), nn.Tanh())
-        self.h1_o = nn.Linear(10,1, bias=True)
-        
-    def forward(self,x):
-        h1 = self.i_h1(x)
-        output = self.h1_o(h1)
-        return output
-
-class Model_alpha_tx(nn.Module):
-    """
-    Model of alpha with (t,x) input
-    """
-    def __init__(self):
-        super(Model_alpha_tx, self).__init__()
-        self.i_h1 = nn.Sequential(nn.Linear(2,10),
-                                  nn.BatchNorm1d(10),
-                                  nn.ReLU())
-        self.h1_h2 = nn.Sequential(nn.Linear(10,10),
-                                   nn.BatchNorm1d(10),
-                                   nn.ReLU())
-        self.h2_o = nn.Linear(10,1,bias=True)
-    
-    def forward(self,x):
-        h1 = self.i_h1(x)
-        h2 = self.h1_h2(h1)
-        output = self.h2_o(h2)
-        return output
-
-
-
 #We do a first example wit alpha = 0.5*x
-#We will take care later on on how to include Model_alpha in order to do policy iteration
 
        
 class Net_stacked(nn.Module):
     """
     We create a network that approximates the solution of
-    v(0,xi) of the HJB PDE equation with terminal condition
+    v(0,xi) of the hamiltonian equation with terminal condition
     v(x,T) = gamma * x**2
+    For this, we fix alpha = 0.5x as an example
+    If alpha is not fixed, and we want to find the optimal the optimal strategy,
+    we can still apply the same algorithm by solving a non-linear PDE. 
+    
     Reference paper: https://arxiv.org/pdf/1706.04702.pdf
     """
     
@@ -120,6 +87,7 @@ class Net_stacked_modified(nn.Module):
     v(0,xi) of the HJB PDE equation with terminal condition
     v(x,T) = gamma * x**2
     The modification of this network is that it won't only calculate v(0,x0) for a fixed x0, but v(0,x) for any x
+    
     Reference paper: https://arxiv.org/pdf/1706.04702.pdf
     """
     
@@ -154,9 +122,9 @@ class Net_stacked_modified(nn.Module):
     
     def forward(self, x):
         
-        for i in range(1,len(self.timegrid)-1):
+        for i in range(0,len(self.timegrid)-1):
             
-            h = self.timegrid[i]-self.timegrid[i-1]
+            h = self.timegrid[i+1]-self.timegrid[i]
             xi = torch.sqrt(h)*Variable(torch.randn(x.data.size()))
             #print('i={}\t x.size={}\t xi.size={}'.format(i,x.data.size(),xi.data.size()))
             alpha = -0.5*x + 0.1
@@ -166,7 +134,7 @@ class Net_stacked_modified(nn.Module):
             grad = self.h2_o[i-1](h2)
             
             # we update value function
-            if i == 1:
+            if i == 0:
                 v0 = self.v0_i_h1(x)
                 v0 = self.v0_h1_h2(v0)
                 v0 = self.v0_h2_o(v0)
@@ -176,14 +144,9 @@ class Net_stacked_modified(nn.Module):
             
             # we update x
             x = x + (self.b*x + self.c*alpha) * h + self.sigma*xi
-            
-        
         return v, x
     
-    
-
-            
-            
+       
 
 def train():
     init_t, T = 0,1
@@ -256,10 +219,12 @@ def train_modified():
         print("Iteration=[{it}/{n_iter}]\t loss={loss:.3f}".format(it=it, n_iter=n_iter, loss=loss.data[0]))
         
 
+if __name__=='__main__':
+    train()
 
 
     
-
+##### PLOTTING 
 import matplotlib.pyplot as plt
 v0 = np.array(v0)
 iteration = np.arange(1,len(v0)+1)
