@@ -360,49 +360,6 @@ class MFG():
         
     
                     
-game = MFG(init_t=9, timestep=0.005,T=10)            
-law = game.law[-1]
-
-## DEbUGGING Policy Iteration
-#pol = Policy_Iteration_Euler(law=law,timestep=0.005, init_t=9,T=10, solver='explicit')
-#pol.p1_grid
-#pol.p2_grid
-#pol.law_grid
-##pol.p2_debug
-#x = np.linspace(0,100,101)
-#n_iterations=10
-#
-#alphas = []
-#value_functions = []
-#
-#alpha = np.array([pol.get_alpha(x_i) for x_i in x]) # initial guess for alpha on the grid of points
-#alphas.append(alpha)
-#alphas
-#
-#for i in range(n_iterations):
-#    print(i)
-#    pol.evaluation_step()
-#    alpha = np.array([pol.get_alpha(x_i) for x_i in x])
-#    alphas.append(alpha)
-#    value = np.array([pol.get_value_function(x_i) for x_i in x])
-#    value_functions.append(value)
-#
-#diff_alphas = [norm(alphas[i+1]-alphas[i], ord='fro') for i in range(len(alphas)-1)]
-#diff_value = [norm(value_functions[i+1]-value_functions[i], ord='fro') for i in range(len(value_functions)-1)]
-#     
-#
-## DEBUGGING MFG
-#game = MFG(init_t=9, T=10, timestep=0.005, solver='explicit') # we need to use explicit solution of ODEs! Euler method creates errors
-#pol = game.solve_policy()
-#pol.p1_grid
-#pol.p2_grid
-#game.update_law(pol)
-#game.law
-#pol = game.solve_policy()
-#pol.p2_grid[-1]
-#pol.p1_grid[-1]
-#game.update_law(pol)
-
 
 #####################
 # general algorithm #
@@ -425,12 +382,14 @@ law = game.law[-1]
 #final_alpha = np.array([pol.get_alpha(x_i) for x_i in x])    
             
     
-# compare with Explicit solution of Flocking model
+
+
+
+
+# compare with known solution from Flocking model
 '''
 Flocking model
 '''
-
-
 # eq 2.51 of 'Probabilistic Theory of Mean Field Games with Applications' with optimal alphas
 # we assume N tends to infinity
 class flocking_model():
@@ -455,148 +414,152 @@ class flocking_model():
         return alpha
         
 
-# we compare both methods: THE BELOW CONFIGURATION CONVERGES 
-kappa = 1
-flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
-                   b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
-                   init_t=9, T=10, timestep = 0.000005, solver='Euler',
-                   init_p1_alpha = lambda t: -0.5)
-pol = flocking_MFG.solve_policy()
-alphas_it = []
-alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-flocking_MFG.update_law(pol)
-pol = flocking_MFG.solve_policy()
-alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-flocking_MFG.update_law(pol)
-diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
-while diff>0.001:
-    print(diff)
+def solution_test_euler_solver():
+    """
+    we compare both methods: The solution given by the flocking model, and the iterative solution
+    """
+    kappa = 1
+    flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
+                       b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
+                       init_t=9, T=10, timestep = 0.000005, solver='Euler',
+                       init_p1_alpha = lambda t: -0.5)
     pol = flocking_MFG.solve_policy()
-    flocking_MFG.update_law(pol)
-    diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+    alphas_it = []
     alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-print('success')
-pol = flocking_MFG.solve_policy()   # we get the alphas with the las value of the law
-final_law = flocking_MFG.law[-1]
-final_alpha = np.array([pol.get_alpha(x_i) for x_i in x]) 
-alphas_it.append(final_alpha)
-
-flocking_solution = flocking_model(law=final_law, h=0.000005, kappa=kappa, sigma=1, t0=9,T=10)  
-alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
-
-norm(final_alpha-alpha_flocking)
-
-
-error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
-x_plot = np.arange(1,len(error)+1)
-
-
-import matplotlib.pyplot as plt
-fig =plt.figure()
-ax = fig.add_subplot(111)
-ax.plot(x_plot, error, '-o')
-ax.set_xlabel('iteration')
-ax.set_ylabel('error')
-ax.set_title('Evolution of Optimal strategy error')
-plt.show()
-fig.savefig(os.path.join(PATH_IMAGES,'MFG_error.png'))
-
-import pandas as pd
-results = pd.DataFrame({'error':error, 'iteration':x_plot})
-results.to_csv(os.path.join(PATH_IMAGES,'MFG_error.csv'))
-
-
-
-
-# we compare both methods. Using explicit solver
-kappa = 0.5
-x = np.linspace(0,100,101)
-flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
-                   b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
-                   init_t=9, T=10, timestep = 0.00005, solver='Explicit',
-                   init_p1_alpha = lambda t: -0.5)
-pol = flocking_MFG.solve_policy()
-alphas_it = []
-alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-flocking_MFG.update_law(pol)
-pol = flocking_MFG.solve_policy()
-alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-flocking_MFG.update_law(pol)
-diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
-while diff>0.00001:
-    print(diff)
+    flocking_MFG.update_law(pol)
     pol = flocking_MFG.solve_policy()
-    flocking_MFG.update_law(pol)
-    diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
-    alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
-print('success')
-pol = flocking_MFG.solve_policy()   # we get the alphas with the las value of the law
-final_law = flocking_MFG.law[-1]
-final_alpha = np.array([pol.get_alpha(x_i) for x_i in x]) 
-alphas_it.append(final_alpha)
-
-flocking_solution = flocking_model(law=final_law, h=0.00005, kappa=kappa, sigma=1, t0=9,T=10)  
-alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
-
-norm(final_alpha-alpha_flocking)
-
-
-error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
-x_plot = np.arange(1,len(error)+1)
-
-import matplotlib.pyplot as plt
-fig =plt.figure()
-ax = fig.add_subplot(111)
-ax.plot(x_plot, error, '-o')
-ax.set_xlabel('iteration')
-ax.set_ylabel('error')
-ax.set_title('Evolution of Optimal strategy error')
-plt.show()
-fig.savefig(os.path.join(PATH_IMAGES,'MFG_error.png'))
-
-
-
-# We update policy and then update law and then policy and then law etc
-kappa = 0.5
-x = np.linspace(0,100,101)
-alphas_it = []
-flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
-                   b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
-                   init_t=9, T=10, timestep = 0.00005, solver='Explicit',
-                   init_p1_alpha = lambda t: -0.5)
-pol = flocking_MFG.policy_one_step()   # we do one step of policy iteration
-alphas_it.append(np.array([pol.get_alpha (x_i) for x_i in x]) )
-flocking_MFG.update_law(pol) # we update the law
-pol.law_grid = flocking_MFG.law[-1]   # we update the lawgrid at the policy iteration
-diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
-while diff>0.00001:
-    print(diff)
-    pol = flocking_MFG.policy_one_step(pol)
     alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
     flocking_MFG.update_law(pol)
-    pol.law_grid = flocking_MFG.law[-1]
     diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
-print('success')
-final_law = flocking_MFG.law[-1]
-flocking_solution = flocking_model(law=final_law, h=0.00005, kappa=kappa, sigma=1, t0=9,T=10)  
-alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
-norm(alphas_it[-1]-alpha_flocking)
+    while diff>0.001:
+        print(diff)
+        pol = flocking_MFG.solve_policy()
+        flocking_MFG.update_law(pol)
+        diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+        alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
+    print('success')
+    pol = flocking_MFG.solve_policy()   # we get the alphas with the las value of the law
+    final_law = flocking_MFG.law[-1]
+    final_alpha = np.array([pol.get_alpha(x_i) for x_i in x]) 
+    alphas_it.append(final_alpha)
+    
+    flocking_solution = flocking_model(law=final_law, h=0.000005, kappa=kappa, sigma=1, t0=9,T=10)  
+    alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
+    
+    norm(final_alpha-alpha_flocking)
+    
+    
+    error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
+    x_plot = np.arange(1,len(error)+1)
+    
+    fig =plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(x_plot, error, '-o')
+    ax.set_xlabel('iteration')
+    ax.set_ylabel('error')
+    ax.set_title('Evolution of Optimal strategy error')
+    plt.show()
+    fig.savefig(os.path.join(PATH_IMAGES,'MFG_error.png'))
+    
+    results = pd.DataFrame({'error':error, 'iteration':x_plot})
+    results.to_csv(os.path.join(PATH_IMAGES,'MFG_error.csv'))
 
-error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
-x_plot = np.arange(1,len(error)+1)
 
-fig =plt.figure()
-ax = fig.add_subplot(111)
-ax.plot(x_plot, error, '-o')
-ax.set_xlabel('iteration')
-ax.set_ylabel('error')
-ax.set_title('Evolution of Optimal strategy error')
-plt.show()
-fig.savefig(os.path.join(PATH_IMAGES,'MFG_One_step_error.png'))
 
-import pandas as pd
-results = pd.DataFrame({'error':error, 'iteration':x_plot})
-results.to_csv(os.path.join(PATH_IMAGES,'MFG_error_update_law_update_value.csv'))
+def solution_test_explicit_solver():
+    """
+    we compare both methods: The solution given by the flocking model, and the iterative solution
+    """
+    kappa = 0.5
+    x = np.linspace(0,100,101)
+    flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
+                       b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
+                       init_t=9, T=10, timestep = 0.00005, solver='Explicit',
+                       init_p1_alpha = lambda t: -0.5)
+    pol = flocking_MFG.solve_policy()
+    alphas_it = []
+    alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
+    flocking_MFG.update_law(pol)
+    pol = flocking_MFG.solve_policy()
+    alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
+    flocking_MFG.update_law(pol)
+    diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+    while diff>0.00001:
+        print(diff)
+        pol = flocking_MFG.solve_policy()
+        flocking_MFG.update_law(pol)
+        diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+        alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
+    print('success')
+    pol = flocking_MFG.solve_policy()   # we get the alphas with the las value of the law
+    final_law = flocking_MFG.law[-1]
+    final_alpha = np.array([pol.get_alpha(x_i) for x_i in x]) 
+    alphas_it.append(final_alpha)
+    
+    flocking_solution = flocking_model(law=final_law, h=0.00005, kappa=kappa, sigma=1, t0=9,T=10)  
+    alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
+    
+    norm(final_alpha-alpha_flocking)
+    
+    
+    error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
+    x_plot = np.arange(1,len(error)+1)
+    
+    fig =plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(x_plot, error, '-o')
+    ax.set_xlabel('iteration')
+    ax.set_ylabel('error')
+    ax.set_title('Evolution of Optimal strategy error')
+    plt.show()
+    fig.savefig(os.path.join(PATH_IMAGES,'MFG_error.png'))
+
+
+def policy_iteration_law():
+    """
+    In this script we update the law after one iteration of policy improvement. 
+    """
+    
+    kappa = 0.5
+    x = np.linspace(0,100,101)
+    alphas_it = []
+    flocking_MFG = MFG(b=0, c=1, m=0, sigma=1, 
+                       b_f=kappa**2/2, c_f = 1/2, d_f=kappa**2/2, e_f=-kappa**2, gamma=0,
+                       init_t=9, T=10, timestep = 0.00005, solver='Explicit',
+                       init_p1_alpha = lambda t: -0.5)
+    pol = flocking_MFG.policy_one_step()   # we do one step of policy iteration
+    alphas_it.append(np.array([pol.get_alpha (x_i) for x_i in x]) )
+    flocking_MFG.update_law(pol) # we update the law
+    pol.law_grid = flocking_MFG.law[-1]   # we update the lawgrid at the policy iteration
+    diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+    while diff>0.00001:
+        print(diff)
+        pol = flocking_MFG.policy_one_step(pol)
+        alphas_it.append(np.array([pol.get_alpha(x_i) for x_i in x]) )
+        flocking_MFG.update_law(pol)
+        pol.law_grid = flocking_MFG.law[-1]
+        diff = norm(flocking_MFG.law[-1]-flocking_MFG.law[-2])
+    print('success')
+    final_law = flocking_MFG.law[-1]
+    flocking_solution = flocking_model(law=final_law, h=0.00005, kappa=kappa, sigma=1, t0=9,T=10)  
+    alpha_flocking = np.array([flocking_solution.get_alpha(x_i) for x_i in x]) 
+    norm(alphas_it[-1]-alpha_flocking)
+    
+    error = [norm(alpha-alpha_flocking) for alpha in alphas_it]
+    x_plot = np.arange(1,len(error)+1)
+    
+    fig =plt.figure()
+    ax = fig.add_subplot(111)
+    ax.plot(x_plot, error, '-o')
+    ax.set_xlabel('iteration')
+    ax.set_ylabel('error')
+    ax.set_title('Evolution of Optimal strategy error')
+    plt.show()
+    fig.savefig(os.path.join(PATH_IMAGES,'MFG_One_step_error.png'))
+    
+    import pandas as pd
+    results = pd.DataFrame({'error':error, 'iteration':x_plot})
+    results.to_csv(os.path.join(PATH_IMAGES,'MFG_error_update_law_update_value.csv'))
 
 
 

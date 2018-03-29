@@ -1,3 +1,9 @@
+"""
+This script solves the MFG linear quadratic game with 
+one major player, and several minor players.
+
+"""
+
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
@@ -11,8 +17,9 @@ class Net_stacked_major(nn.Module):
     """
     We create a network that approximates the solution of
     v(0,xi) of the HJB PDE equation with terminal condition
-    v(x,T) = gamma * x**2
     Reference paper: https://arxiv.org/pdf/1706.04702.pdf
+    
+    The dynamics of the major player are given in the report. 
     """
     
     def __init__(self, dim, b, b_bar, x_bar, c, sigma, b_f, b_f_bar, eta, c_f, timegrid):
@@ -86,8 +93,9 @@ class Net_stacked_minor(nn.Module):
     """
     We create a network that approximates the solution of
     v(0,xi) of the HJB PDE equation with terminal condition
-    v(x,T) = gamma * x**2
     Reference paper: https://arxiv.org/pdf/1706.04702.pdf
+    
+    The dynamics of the minor players are given in the report. 
     """
     
     def __init__(self, dim, b_minor, b_bar_minor, x_bar, c_minor, q_minor, 
@@ -169,6 +177,13 @@ class Net_stacked_minor(nn.Module):
     
     
 class major_minor_LQR_MFG():
+    """
+    This class solves a MFG:
+    Algorithm:
+        - We fix the law and find the major player strategies, using the DL approximation of the value function
+        - We fix the major player strategy, and find the minor players strategies, using the DL approximation of the value function
+        - We update the law.    
+    """
     
     def __init__(self,b_major, b_bar_major, c_major, sigma, b_f_major, b_f_bar_major, eta_major, c_f_major, gamma_major, gamma_bar_major,
                  b_minor, k, b_bar_minor, c_minor, q_minor, b_f_minor, b_f_bar_minor, eta_minor, c_f_minor, gamma_minor, gamma_bar_minor,
@@ -342,20 +357,21 @@ def main():
     plt.plot(game.eta_major)
     plt.plot(game.eta_minor)
     
-    
+    # norm differences of the law
     [norm(law[i]-law[i-1]) for i in range(1,len(law))]
 
-    x0 = 0
-    input = torch.ones([1, 1])*x0
-    input = Variable(input)
-    v, x, path = minor_player_model(input)
-    x_minor = np.concatenate([x.data[0].numpy() for x in path])
-    plt.plot(x_minor)
-    
-    v, x, path, grad_path, dW = major_player_model(input)
-    x_major = np.concatenate([x.data[0].numpy() for x in path])
-    plt.plot(x_major)
-    plt.plot(game.eta_major)
+#    
+#    x0 = 0
+#    input = torch.ones([1, 1])*x0
+#    input = Variable(input)
+#    v, x, path = minor_player_model(input)
+#    x_minor = np.concatenate([x.data[0].numpy() for x in path])
+#    plt.plot(x_minor)
+#    
+#    v, x, path, grad_path, dW = major_player_model(input)
+#    x_major = np.concatenate([x.data[0].numpy() for x in path])
+#    plt.plot(x_major)
+#    plt.plot(game.eta_major)
     
     
     # plots results
@@ -367,7 +383,6 @@ def main():
     ax1.legend()
     ax1.set_xlabel('time')
     fig.savefig('major_player_state_MFG_LQR.png')
-    
     
     
     x_minor = []
@@ -386,43 +401,10 @@ def main():
     
     
     
+if __name__=='__main__':
+    main()
     
-#
-#
-#    
-#    
-#    
-#    x_bar = np.zeros_like(timegrid)    
-#    model = Net_stacked_major(dim=1, b=b_major, b_bar=b_bar_major, 
-#                              x_bar=x_bar, c=c_major, sigma=sigma, 
-#                              b_f=b_f_major, b_f_bar=b_f_bar_major, eta=eta_major, 
-#                              c_f=c_f_major, timegrid=timegrid)
-#    model.train()
-#    batch_size = 60
-#    base_lr = 0.1
-#    optimizer = torch.optim.Adam(model.parameters(), lr=base_lr)
-#    criterion = torch.nn.MSELoss()
-#    
-#    n_iter = 3000
-#    #v0 = []
-#    
-#    for it in range(n_iter):
-#        optimizer.zero_grad()
-#        x0 = 0
-#        input = torch.ones([batch_size, 1])*x0
-#        input = Variable(input)
-#        output, x_T, _, _, _ = model(input)
-#        target = gamma_major*x_T**2
-#        target = Variable(target.data, requires_grad=False)
-#        #target = Variable(target)
-#        loss = criterion(output, target)
-#        loss.backward()
-#        optimizer.step()
-#        print("Iteration=[{it}/{n_iter}]\t loss={loss:.3f}".format(it=it, n_iter=n_iter, loss=loss.data[0]))
-#        #v0.append(copy.deepcopy(model.state_dict()['v0'].numpy())[0])
-#    
-#    self.major_player_value.append(model)
-#    return model
+    
 
     
         
