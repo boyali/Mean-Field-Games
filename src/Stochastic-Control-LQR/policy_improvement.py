@@ -1,5 +1,9 @@
-# THIRD IMPLEMENTATION: we solve the ODE directly using Euler
-###### SECOND IMPLEMENTATION USING SCIPY
+"""
+This script has the following classes:
+    - class Policy_Iteration_LQR: applies policy iteration algorithm to find optimal policy in an LQR problem
+    - class HJB_LQR: finds explicit solution to LQR problem
+"""
+
 from scipy.integrate import quad, ode, odeint, simps
 import numpy as np
 from numpy.linalg import norm
@@ -8,10 +12,10 @@ from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import os
 
-PATH_IMAGES = '/Users/msabate/Projects/Turing/Mean-Field-Games/images' # save this
+PATH_IMAGES = '/Users/msabate/Projects/Turing/Mean-Field-Games/images' # change this
 
 
-class Policy_Iteration_Euler():    
+class Policy_Iteration_LQR():    
     
     def __init__(self, x_0=0, b=0.5, c=0.5, sigma=1, b_f=0.5, c_f=0.9, gamma=1, T=10, init_t = 9, solver='Euler', timestep=0.05):
         self.x_0 = x_0
@@ -252,7 +256,7 @@ class HJB_LQR():
             
     def _solve_ode_explicit(self, a0, a1, a2, y_T):
         """
-        This function solves a specific type of ODE: dy(t)=(a0(t) + a1(t)*y(t))dt; y(T) = gamma
+        This function solves the ODE: dy(t)=(a0(t) + a1(t)*y(t)+a2(t)y(t)**2)dt; y(T) = gamma
         
         Input:
             - a0: function
@@ -279,73 +283,27 @@ class HJB_LQR():
 
 
 
-# HJB
-init_t, T = 0,1
-timestep = 0.05
-xlim = (0,5)
-b=0.5 
-c=0.5 
-sigma=1 
-b_f=0.5 
-c_f=0.9
-gamma = 1
-LQR_sol = HJB_LQR(x_0=0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, gamma=gamma, T=T, init_t=init_t, solve_ode=True, timestep=timestep)
-x = np.linspace(0,100,101) 
-alpha = np.array([LQR_sol.get_alpha(x_i) for x_i in x])   
+# Test HJB
+#init_t, T = 0,1
+#timestep = 0.05
+#xlim = (0,5)
+#b=0.5 
+#c=0.5 
+#sigma=1 
+#b_f=0.5 
+#c_f=0.9
+#gamma = 1
+#LQR_sol = HJB_LQR(x_0=0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, gamma=gamma, T=T, init_t=init_t, solve_ode=True, timestep=timestep)
+#x = np.linspace(0,100,101) 
+#alpha = np.array([LQR_sol.get_alpha(x_i) for x_i in x])   
 
     
 
 
 
-def compare_ode_implementations():
-    pol1 = Policy_Iteration_Euler()
-    x = np.linspace(0,100,101)
-    n_iterations=10
-    
-    alphas = []
-    value_functions = []
-    
-    alpha = np.array([pol1.get_alpha(x_i) for x_i in x]) # initial guess for alpha on the grid of points
-    alphas.append(alpha)
-    
-    for i in range(n_iterations):
-        pol1.evaluation_step()
-        alpha = np.array([pol1.get_alpha(x_i) for x_i in x])
-        alphas.append(alpha)
-        value = np.array([pol1.get_value_function(x_i) for x_i in x])
-        value_functions.append(value)
-    
-    diff_alphas = [norm(alphas[i+1]-alphas[i], ord='fro') for i in range(len(alphas)-1)]
-    diff_value = [norm(value_functions[i+1]-value_functions[i], ord='fro') for i in range(len(value_functions)-1)]
-    
-    pol2 = Policy_Iteration_Euler(solver='Explicit')
-    x = np.linspace(0,100,101)
-    n_iterations=10
-    
-    alphas2 = []
-    value_functions2 = []
-    
-    alpha = np.array([pol2.get_alpha(x_i) for x_i in x]) # initial guess for alpha on the grid of points
-    alphas2.append(alpha)
-    
-    for i in range(n_iterations):
-        pol2.evaluation_step()
-        alpha = np.array([pol2.get_alpha(x_i) for x_i in x])
-        alphas2.append(alpha)
-        value = np.array([pol2.get_value_function(x_i) for x_i in x])
-        value_functions2.append(value)
-    
-    diff_alphas = [norm(alphas2[i+1]-alphas2[i], ord='fro') for i in range(len(alphas2)-1)]
-    diff_value = [norm(value_functions[i+1]-value_functions[i], ord='fro') for i in range(len(value_functions)-1)]
-      
-
-        
-        
-        
-        
 def iterate(x_0, b, c, b_f, c_f, gamma, T, init_t, n_iterations, solver, timestep):
 
-    pol = Policy_Iteration_Euler(x_0=x_0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, 
+    pol = Policy_Iteration_LQR(x_0=x_0, b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, 
                                  gamma=gamma, T=T, init_t =init_t, solver=solver, timestep=timestep)
     #pol = Policy_Iteration_Euler()
     x = np.linspace(0,100,101)
@@ -399,7 +357,7 @@ if __name__=='__main__':
         fig = plt.figure()
         ax = fig.gca(projection='3d')
         
-        surf = ax.plot_surface(X_grid, Y_grid, alphas[i], cmap="coolwarm",
+        surf = ax.plot_surface(X_grid, Y_grid, alpha, cmap="coolwarm",
                                linewidth=0, antialiased=False)
         plt.show()
         fig.savefig(os.path.join(PATH_IMAGES, 'alpha_iteration'+str(i)+'.png'))
@@ -415,7 +373,7 @@ if __name__=='__main__':
 
 
     # we compare with explicit HJB solution
-    x = np.linspace(0,100,101)
+    x = np.linspace(0,5,101)
     hjb = HJB_LQR(b=b, c=c, sigma=sigma, b_f=b_f, c_f=c_f, gamma=gamma, T=T, init_t = init_t, solve_ode=True, timestep=timestep)
     alpha = np.array([hjb.get_alpha(x_i) for x_i in x])
     value = np.array([hjb.get_value_function(x_i) for x_i in x])
