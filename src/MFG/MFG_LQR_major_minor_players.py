@@ -314,14 +314,14 @@ def main():
     b_major = 0
     b_bar_major=0 
     c_major = 1
-    sigma=0.05
+    sigma=0.005
     b_f_major = 1
     b_f_bar_major = 0.5
     init_t = 0
-    T = 5
+    T = 4
     timestep = 0.05
     timegrid = np.arange(init_t, T+timestep/2, timestep)
-    eta_major = (1/(1+np.exp(-timegrid))-0.5)*6 #np.sin(timegrid*np.pi)
+    eta_major = (1/(1+np.exp(-timegrid))-0.5)*8 #np.sin(timegrid*np.pi)
     c_f_major=0.5
     gamma_major = 0#1
     gamma_bar_major = 0#0.1
@@ -332,7 +332,7 @@ def main():
     q_minor = 1.5
     b_f_minor = 1
     b_f_bar_minor = 0.8
-    eta_minor = (1/(1+np.exp(-timegrid))-0.5)*0.5
+    eta_minor = (1/(1+np.exp(-timegrid))-0.5)*2
     c_f_minor = 1
     gamma_minor = 0#1
     gamma_bar_minor = 0#0.5
@@ -348,9 +348,9 @@ def main():
     law.append(game.x_bar)
     for i in range(10):
     
-        major_player_model = game.major_player(batch_size=900,n_iter=450)
-        minor_player_model = game.minor_player(major_player_model, batch_size=900,n_iter=100)
-        game.update_law(minor_player_model, n_simulations=500)
+        major_player_model = game.major_player(batch_size=4500,n_iter=250)
+        minor_player_model = game.minor_player(major_player_model, batch_size=4500,n_iter=100)
+        game.update_law(minor_player_model, n_simulations=800)
         law.append(game.x_bar)
     
     plt.plot(game.x_bar)
@@ -359,19 +359,29 @@ def main():
     
     # norm differences of the law
     [norm(law[i]-law[i-1]) for i in range(1,len(law))]
+    diff = [norm(law[i]-law[i-1]) for i in range(1,len(law))]
+    iterations = np.arange(1,len(diff)+1,1)
+    fig = plt.figure()
+    ax1 = fig.add_subplot(111)
+    ax1.plot(iterations,np.array(diff), 'o-')
+    ax1.set_xlabel('iteration')
+    ax1.set_ylabel('law difference with respect to previous iteration')
+    fig.savefig('plot_convergence_MFG_major_minor.png')
+    
+    df = pd.DataFrame({'diff':diff})
 
-#    
-#    x0 = 0
-#    input = torch.ones([1, 1])*x0
-#    input = Variable(input)
-#    v, x, path = minor_player_model(input)
-#    x_minor = np.concatenate([x.data[0].numpy() for x in path])
-#    plt.plot(x_minor)
-#    
-#    v, x, path, grad_path, dW = major_player_model(input)
-#    x_major = np.concatenate([x.data[0].numpy() for x in path])
-#    plt.plot(x_major)
-#    plt.plot(game.eta_major)
+    
+    x0 = 0
+    input = torch.ones([1, 1])*x0
+    input = Variable(input)
+    v, x, path = minor_player_model(input)
+    x_minor = np.concatenate([x.data[0].numpy() for x in path])
+    plt.plot(x_minor)
+    
+    v, x, path, grad_path, dW = major_player_model(input)
+    x_major = np.concatenate([x.data[0].numpy() for x in path])
+    plt.plot(x_major)
+    plt.plot(game.eta_major)
     
     
     # plots results
