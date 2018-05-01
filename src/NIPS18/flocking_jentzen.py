@@ -106,6 +106,7 @@ class MFG_flocking():
     def value_evaluation(self, batch_size=1000, base_lr=0.01, n_iter=2000):
         
         model = Net_stacked(dim=self.dim, kappa=self.kappa, sigma=self.sigma, law=self.law, timegrid=self.timegrid)
+        
         if cuda:
             model.cuda()
         
@@ -156,7 +157,25 @@ class MFG_flocking():
             improved_law.append(step.mean(0).view(1,-1))
             std_law.append(step.std(0).view(1,-1))
         self.law = torch.cat(improved_law, 0)
+        self.law = Variable(self.law.data)
         self.std_law = torch.cat(std_law,0)
+        
+    def get_policy(self, model, x):
+        """
+        This function returns the policy, that we know is alpha=-grad
+        """
+        model.eval()
+        alpha = torch.zeros([len(self.timegrid)-1, self.dim])
+        for t in range(len(self.timegrid)-1):
+            if t==0:
+                alpha[t] = model.grad_v0
+            else:
+                h1 = model.i_h1[i-1](x)
+                h2 = model.h1_h2[i-1](h1)
+                grad = model.h2_o[i-1](h2)
+                alpha[t] = grad
+        return grad
+            
         
 
 
@@ -189,7 +208,7 @@ class flocking_model():
     
     def init_markov(self):
         states = np.zeros((self.N, int(self.T/self.h),self.dim))
-        states[:,0] = np.random.normal(loc=0, scale=2, size=(self.N,self.dim))
+        #states[:,0] = np.random.normal(loc=0, scale=2, size=(self.N,self.dim))
         return states
     
 #    def get_alpha(self,i,t):
@@ -214,8 +233,14 @@ if __name__ == '__main__':
     timestep = 0.05
     
     # EXPLICIT SOLUTON OF FLOCKING MODEL FROM MFG BOOK    
-    flocking_mdp = flocking_model(N=100, h=0.05, kappa=1, sigma=0.01, T=10, dim=100)
+    flocking_mdp = flocking_model(N=100, h=0.05, kappa=1, sigma=0.01, T=10, dim=3)
     flocking_mdp.simulate_mdp()
+    
+    law = []
+    for i in range(flocking_mdp.states.shape[1]):
+        law.append(np.apply_along_axis(np.mean, 0, flocking_mdp.states[:,i,:]))
+    law = np.concatenate(law, axis=0)
+    
     
     
     # PLOTTING. We plot one of the dimensions
@@ -238,8 +263,13 @@ if __name__ == '__main__':
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
     law = Variable(torch.zeros([timegrid.size, dim]))
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=0.05)
-    model, v0 = game.value_evaluation()
-    game.law_improvement(model, n_iter = 50000)
+    
+    model, v0 = game.value_evaluation(n_iter=1500)
+    game.law_improvement(model, n_iter = 30000)
+    game.law
+    
+    
+    game.std_law
     
             
             
