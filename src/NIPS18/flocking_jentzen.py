@@ -122,7 +122,8 @@ class MFG_flocking():
         l = 1
         
         #for it in range(n_iter):
-        while l>0.0001:
+        it = 0
+        while l>0.00001:
             optimizer.zero_grad()
             #x0 = 10
             if cuda:
@@ -145,7 +146,8 @@ class MFG_flocking():
             print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}\t v0={v0:.3f}".format(it=it, n_iter=n_iter, loss=loss.data[0], 
                   v0=copy.deepcopy(model.state_dict()['v0'].numpy())[0]))
             v0.append(copy.deepcopy(model.state_dict()['v0'].numpy())[0])
-            l = loss.data[0].numpy()
+            l = loss.data[0]
+            it += 1
             
         return model, v0
         
@@ -162,6 +164,19 @@ class MFG_flocking():
         self.law = torch.cat(improved_law, 0)
         self.law = Variable(self.law.data)
         self.std_law = torch.cat(std_law,0)
+    
+    def law_improvement_expected(self, model):
+        model.eval()
+        input = Variable(torch.zeros([1, self.dim]))
+        alpha = self.get_policy(model, input)
+        improved_law = [input]
+        for i in range(len(self.timegrid)-1):
+            next_step = improved_law[-1] + alpha[i]
+            improved_law.append(next_step)
+        self.law = torch.cat(improved_law)
+        self.law = Variable(self.law.data)
+        
+        
         
     def get_policy(self, model, x):
         """
@@ -171,13 +186,13 @@ class MFG_flocking():
         alpha = torch.zeros([len(self.timegrid)-1, self.dim])
         for t in range(len(self.timegrid)-1):
             if t==0:
-                alpha[t] = model.grad_v0
+                alpha[t] = -model.grad_v0
             else:
                 h1 = model.i_h1[i-1](x)
                 h2 = model.h1_h2[i-1](h1)
                 grad = model.h2_o[i-1](h2)
-                alpha[t] = grad
-        return grad
+                alpha[t] = -grad
+        return alpha
             
         
 
@@ -233,7 +248,7 @@ if __name__ == '__main__':
     sigma = 0.1
     init_t = 0
     T = 1
-    timestep = 0.05
+    timestep = 0.02
     
     # EXPLICIT SOLUTON OF FLOCKING MODEL FROM MFG BOOK    
     flocking_mdp = flocking_model(N=100, h=0.05, kappa=1, sigma=0.01, T=10, dim=3)
@@ -262,13 +277,13 @@ if __name__ == '__main__':
     
     
     # DEEP LEARNING SOLUTION
-    dim = 100
+    #dim = 100
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
     law = Variable(torch.zeros([timegrid.size, dim]))
-    game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=0.05)
+    game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep)
     
     model, v0 = game.value_evaluation(n_iter=1500)
-    game.law_improvement(model, n_iter = 30000)
+    game.law_improvement_expected(model)
     game.law
     
     
