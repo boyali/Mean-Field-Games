@@ -119,8 +119,10 @@ class MFG_flocking():
         model.train()
         
         v0 = []
+        l = 1
         
-        for it in range(n_iter):
+        #for it in range(n_iter):
+        while l>0.0001:
             optimizer.zero_grad()
             #x0 = 10
             if cuda:
@@ -140,9 +142,10 @@ class MFG_flocking():
             loss = criterion(output, target) 
             loss.backward()
             optimizer.step()
-            print("Iteration=[{it}/{n_iter}]\t loss={loss:.3f}\t v0={v0:.3f}".format(it=it, n_iter=n_iter, loss=loss.data[0], 
+            print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}\t v0={v0:.3f}".format(it=it, n_iter=n_iter, loss=loss.data[0], 
                   v0=copy.deepcopy(model.state_dict()['v0'].numpy())[0]))
             v0.append(copy.deepcopy(model.state_dict()['v0'].numpy())[0])
+            l = loss.data[0].numpy()
             
         return model, v0
         
