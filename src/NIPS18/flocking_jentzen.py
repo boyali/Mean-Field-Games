@@ -103,7 +103,7 @@ class MFG_flocking():
         self.law = law   # law is a matrix with the same number of rows as timegrid (one per each timestep), and the same number of columns as dim
         self.timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
         
-    def value_evaluation(self, batch_size=1000, base_lr=0.01, n_iter=2000):
+    def value_evaluation(self, batch_size=1000, base_lr=0.01, tol=0.00001, n_iter=2000):
         
         model = Net_stacked(dim=self.dim, kappa=self.kappa, sigma=self.sigma, law=self.law, timegrid=self.timegrid)
         
@@ -123,7 +123,7 @@ class MFG_flocking():
         
         #for it in range(n_iter):
         it = 0
-        while l>0.00001:
+        while l>tol:
             optimizer.zero_grad()
             #x0 = 10
             if cuda:
@@ -263,17 +263,20 @@ if __name__ == '__main__':
     dim = 10
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
     #law = Variable(torch.zeros([timegrid.size, dim]))
-    law = np.random.normal(loc=1, scale=0.1, size=[timegrid.size, dim]) # the law is sampled around 1 with a normal distribution
+    law = np.random.normal(loc=1, scale=0.1, size=[timegrid.size, dim]) # the law is drawn from a normal distribution with mean 1, sd=0.1
     law = Variable(torch.Tensor(law))
     
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep)
     law = [game.law]
-    model, v0 = game.value_evaluation(n_iter=1500, base_lr=0.1)
+    model, v0 = game.value_evaluation(n_iter=1500, base_lr=0.1, tol=0.00001)
     game.law_improvement(model, n_iter=30000)
     game.law
     law.append(game.law)
     
     game.std_law
+    
+    # Plotting:
+    
     
             
             
