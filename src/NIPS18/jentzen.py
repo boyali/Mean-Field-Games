@@ -14,23 +14,23 @@ import math
 
 
 
-def explicit_solution_sim(x, init_t, T, lambda_, g = lambda x: 2/(1+norm(x)**2), n_simulations = 1000):
-    res_sim = []
-    h = T - init_t
-    for sim in range(n_simulations):
-        xi = np.random.normal(0,1, size=x.shape[0])
-        res = np.exp(-lambda_ * g(x+math.sqrt(2)*math.sqrt(h)*xi))
-        res_sim.append(res)
-    
-    res_sim = np.array(res_sim)
-    
-    expl_sol = -1/(lambda_) * np.log(np.mean(res_sim))
-    
-    return expl_sol, res_sim
-
-dim = 100
-x = np.zeros(dim)
-expl_sol, res_sim = explicit_solution_sim(x=x, init_t=0, T=1, lambda_=1, n_simulations=100000)
+#def explicit_solution_sim(x, init_t, T, lambda_, g = lambda x: 2/(1+norm(x)**2), n_simulations = 1000):
+#    res_sim = []
+#    h = T - init_t
+#    for sim in range(n_simulations):
+#        xi = np.random.normal(0,1, size=x.shape[0])
+#        res = np.exp(-lambda_ * g(x+math.sqrt(2)*math.sqrt(h)*xi))
+#        res_sim.append(res)
+#    
+#    res_sim = np.array(res_sim)
+#    
+#    expl_sol = -1/(lambda_) * np.log(np.mean(res_sim))
+#    
+#    return expl_sol, res_sim
+#
+#dim = 100
+#x = np.zeros(dim)
+#expl_sol, res_sim = explicit_solution_sim(x=x, init_t=0, T=1, lambda_=1, n_simulations=100000)
 
 
 class Net_stacked(nn.Module):
@@ -39,7 +39,8 @@ class Net_stacked(nn.Module):
     v(0,xi) of the HJB PDE equation with terminal condition
     Reference paper: https://arxiv.org/pdf/1706.04702.pdf
     
-    The dynamics of the major player are given in the report. 
+    This network specifically solves the HJB equation with terminal condition in the paper
+    
     """
     
     def __init__(self, dim, lambda_, sigma, timegrid):
@@ -106,6 +107,9 @@ class Net_stacked(nn.Module):
     
     
 def train():
+    """
+    
+    """
     init_t, T = 0,1
     timestep = 0.05
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
@@ -146,12 +150,5 @@ def train():
     return v0
 
 
-x1 = [2/(1+x**2) for x in np.linspace(0,10,100)]
-x2 = [np.log(0.5*(1+x**2)) for x in np.linspace(0,10,100)]
-
-
-
-m = nn.Linear(20, 30)
-input = Variable(torch.randn(128, 20))
-output = m(input)
-print(output.size())
+if __name__ == '__main__':
+    train()
