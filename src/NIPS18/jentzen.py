@@ -1,3 +1,8 @@
+"""
+This script implements the algorithm proposed in https://arxiv.org/pdf/1706.04702.pdf
+and reproduces the results, solving the HJB equation with terminal condition in the paper
+"""
+
 import os
 import numpy as np
 import torch
