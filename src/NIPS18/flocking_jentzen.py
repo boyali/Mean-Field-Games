@@ -36,8 +36,8 @@ class Net_stacked(nn.Module):
         self.kappa = kappa
         self.sigma = sigma
         
-        self.v0 = nn.Parameter(data=torch.randn(1))
-        self.grad_v0 = nn.Parameter(data=torch.randn(self.dim))
+        self.v0 = nn.Parameter(data=torch.zeros(1))
+        self.grad_v0 = nn.Parameter(data=torch.zeros(self.dim))
         
         self.i_h1 = nn.ModuleList([self.hiddenLayer(dim, dim+10) for t in timegrid[1:-1]])
         self.h1_h2 = nn.ModuleList([self.hiddenLayer(dim+10, dim+10) for t in timegrid[1:-1]])
@@ -127,9 +127,9 @@ class MFG_flocking():
             optimizer.zero_grad()
             #x0 = 10
             if cuda:
-                input = torch.zeros([batch_size, dim]).cuda()  # our input is (0,0,0,...,0)
+                input = torch.ones([batch_size, dim]).cuda()  # our input is (0,0,0,...,0)
             else:
-                input = torch.zeros([batch_size, dim])
+                input = torch.ones([batch_size, dim])
             input = Variable(input)
             output, x_T, _ = model(input)
             #target = 2/(1+torch.norm(x_T,2,1)**2)
@@ -154,7 +154,7 @@ class MFG_flocking():
     def law_improvement(self, model, n_iter=10000):
             
         model.eval()
-        input = Variable(torch.zeros([n_iter, self.dim]))
+        input = Variable(torch.ones([n_iter, self.dim]))
         _, _, path = model(input)
         improved_law = []
         std_law = []
@@ -165,19 +165,7 @@ class MFG_flocking():
         self.law = Variable(self.law.data)
         self.std_law = torch.cat(std_law,0)
     
-    def law_improvement_expected(self, model):
-        model.eval()
-        input = Variable(torch.zeros([1, self.dim]))
-        alpha = self.get_policy(model, input)
-        improved_law = [input]
-        for i in range(len(self.timegrid)-1):
-            next_step = improved_law[-1] + alpha[i]
-            improved_law.append(next_step)
-        self.law = torch.cat(improved_law)
-        self.law = Variable(self.law.data)
-        
-        
-        
+    
     def get_policy(self, model, x):
         """
         This function returns the policy, that we know is alpha=-grad
@@ -243,14 +231,14 @@ class flocking_model():
         
 if __name__ == '__main__':
     
-    dim = 3
+    dim = 10
     kappa = 1
     sigma = 0.1
     init_t = 0
     T = 1
-    timestep = 0.02
+    timestep = 0.01
     
-    # EXPLICIT SOLUTON OF FLOCKING MODEL FROM MFG BOOK    
+    # EXPLICIT SOLUTON OF FLOCKING MODEL FROM MFG BOOK (eq. 2.51)   
     flocking_mdp = flocking_model(N=100, h=0.05, kappa=1, sigma=0.01, T=10, dim=3)
     flocking_mdp.simulate_mdp()
     
@@ -262,12 +250,6 @@ if __name__ == '__main__':
     
     
     # PLOTTING. We plot one of the dimensions
-    flocking_mdp.states[0,0,:]
-    flocking_mdp.states[0,-1,:]
-    flocking_mdp.states[1,-1,:]
-    flocking_mdp.states[2,-1,:]
-    
-    
     test = flocking_mdp.states[:,:,0]
     test = test.reshape(test.shape[0],test.shape[1])
     
@@ -278,14 +260,18 @@ if __name__ == '__main__':
     
     # DEEP LEARNING SOLUTION
     #dim = 100
+    dim = 10
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
-    law = Variable(torch.zeros([timegrid.size, dim]))
+    #law = Variable(torch.zeros([timegrid.size, dim]))
+    law = np.random.normal(loc=1, scale=0.1, size=[timegrid.size, dim]) # the law is sampled around 1 with a normal distribution
+    law = Variable(torch.Tensor(law))
+    
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep)
-    
-    model, v0 = game.value_evaluation(n_iter=1500)
-    game.law_improvement_expected(model)
+    law = [game.law]
+    model, v0 = game.value_evaluation(n_iter=1500, base_lr=0.1)
+    game.law_improvement(model, n_iter=30000)
     game.law
-    
+    law.append(game.law)
     
     game.std_law
     
