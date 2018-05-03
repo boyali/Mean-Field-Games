@@ -61,7 +61,12 @@ def test_automatic_differentiation():
     for param in layer.parameters():
         print(param.grad)
     print('x = {}\n parameters = {}'.format(x, list(layer.parameters())))   # it works!!!!!!
+
+
+
+def test_automatic_diff_batch():
     
+
 
 
 
@@ -108,8 +113,9 @@ class Net_Raissi(nn.Module):
 
 # test
 #model = Net_Raissi(10)
-#x = Variable(torch.randn((2,10)), requires_grad=True)
+#x = Variable(torch.randn((2,11)), requires_grad=True)
 #output, output_grad = model(x)
+
 
 
 def train():
@@ -174,7 +180,69 @@ def train():
         print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
         
         
+def train_modified():
+    """
+    Autograd is taking very long for large batch sizes. We get the output of the model one by one and then
+    we concatenate
+    """
+    batch_size = 10
+    base_lr = 0.05
+    dim = 10
+    init_t = 0
+    T = 1
+    timestep = 0.05
+    timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
+    sigma = 1
+    lambda_ = 1
+    
+    model = Net_Raissi(dim)
+    optimizer = torch.optim.Adam(model.parameters(),lr=base_lr)
+    
+    n_iter = 100  # to be changed
+    output_model = namedtuple('output', ['v', 'grad_v'])
+    
+    
+    
+    for it in range(n_iter):
+        model.zero_grad()
+        x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
+        t = Variable(torch.zeros(batch_size, 1), requires_grad=True)
+        tx = torch.cat([t,x], dim=1)
         
+        v, grad_v  = model(tx) 
+        brownian = [output_model(v, grad_v)]  # we will save the brownian path
+        
+        error = []
+        
+        for i in range(1, len(timegrid)):
+            h = timegrid[i]-timegrid[i-1]
+            xi = Variable(torch.randn(x.size()))
+            alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
+            f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
+            x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
+            t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
+            tx = torch.cat([t,x], dim=1)
+            v, grad_v  = model(tx) 
+            brownian.append(output_model(v, grad_v))
+            error.append(brownian[-1].v - brownian[-2].v + 
+                         f*h - 
+                         torch.diag(torch.matmul(brownian[-2].grad_v, sigma*torch.sqrt(h)*xi.transpose(1,0))))
+        
+        # we build the loss function from Raissi's paper
+        error = torch.cat(error, dim=0)
+        g = torch.log(0.5*(1+torch.norm(x,2,1)**2))   # terminal condition from Raissi's paper (also from Jentzen's paper)
+        g = g.view(batch_size,-1)
+        error_terminal = brownian[-1].v - g
+        loss = torch.sum(torch.norm(error,2,1)**2) + torch.sum(torch.norm(error_terminal,2,1)**2)
+        
+        # backpropagation
+        loss.backward()
+        
+        # Optimizer step
+        optimizer.step()
+        
+        # printing
+        print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
         
         
         
