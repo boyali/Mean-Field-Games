@@ -247,7 +247,11 @@ def train_modified():
                 xi = Variable(torch.randn(x.size()))
             alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
             f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
-            x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
+            if cuda:
+                h = round(h.cpu().data[0],2)
+                x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*math.sqrt(h)*xi
+            else:
+                x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
             t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
             tx = torch.cat([t,x], dim=1)
             #v, grad_v  = model(tx) 
@@ -259,10 +263,15 @@ def train_modified():
             v = torch.cat(v, dim=0)
             grad_v = torch.cat(grad_v, dim=0)
             brownian.append(output_model(v, grad_v))
-            error.append(brownian[-1].v - brownian[-2].v + 
-                         f*h - 
-                         torch.diag(torch.matmul(brownian[-2].grad_v, sigma*torch.sqrt(h)*xi.transpose(1,0))))
-        
+            if cuda:
+                #h = round(h.cpu().data[0],2)
+                error.append(brownian[-1].v - brownian[-2].v + 
+                             f*h - 
+                             torch.diag(torch.matmul(brownian[-2].grad_v, sigma*math.sqrt(h)*xi.transpose(1,0))))
+            else:
+                error.append(brownian[-1].v - brownian[-2].v + 
+                             f*h - 
+                             torch.diag(torch.matmul(brownian[-2].grad_v, sigma*torch.sqrt(h)*xi.transpose(1,0))))
         # we build the loss function from Raissi's paper
         error = torch.cat(error, dim=0)
         g = torch.log(0.5*(1+torch.norm(x,2,1)**2))   # terminal condition from Raissi's paper (also from Jentzen's paper)
@@ -278,38 +287,3 @@ def train_modified():
         
         # printing
         print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
-        
-        
-        
-            
-            
-            
-        
-            
-            
-            
-        
-        
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-
-    
-    
-    
-    
-    
-    
-    
-
-
-
-
-
