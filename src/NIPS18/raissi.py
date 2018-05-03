@@ -64,12 +64,6 @@ def test_automatic_differentiation():
 
 
 
-def test_automatic_diff_batch():
-    
-
-
-
-
 class Net_Raissi(nn.Module):
     """
     Maziar Raissi's network
@@ -112,9 +106,9 @@ class Net_Raissi(nn.Module):
     
 
 # test
-#model = Net_Raissi(10)
-#x = Variable(torch.randn((2,11)), requires_grad=True)
-#output, output_grad = model(x)
+model = Net_Raissi(10)
+x = Variable(torch.randn((2,11)), requires_grad=True)
+output, output_grad = model(x)
 
 
 
@@ -126,22 +120,32 @@ def train():
     init_t = 0
     T = 1
     timestep = 0.05
-    timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
+    if cuda:
+        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)).cuda())
+    else:
+        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
+    
     sigma = 1
     lambda_ = 1
     
     model = Net_Raissi(dim)
     optimizer = torch.optim.Adam(model.parameters(),lr=base_lr)
     
+    if cuda:
+        model.cuda()
+    
     n_iter = 100  # to be changed
     output_model = namedtuple('output', ['v', 'grad_v'])
     
-    
-    
     for it in range(n_iter):
         model.zero_grad()
-        x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
-        t = Variable(torch.zeros(batch_size, 1), requires_grad=True)
+        if cuda:
+            x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
+            t = Variable(torch.zeros((batch_size, 1)).cuda(), requires_grad=True)
+        else:
+            x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
+            t = Variable(torch.zeros((batch_size, 1)), requires_grad=True)
+
         tx = torch.cat([t,x], dim=1)
         
         v, grad_v  = model(tx) 
@@ -151,7 +155,10 @@ def train():
         
         for i in range(1, len(timegrid)):
             h = timegrid[i]-timegrid[i-1]
-            xi = Variable(torch.randn(x.size()))
+            if cuda:
+                xi = Variable(torch.randn(x.size()).cuda())
+            else:
+                xi = Variable(torch.randn(x.size()))
             alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
             f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
             x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
@@ -186,43 +193,71 @@ def train_modified():
     we concatenate
     """
     batch_size = 10
-    base_lr = 0.05
+    base_lr = 0.02
     dim = 10
     init_t = 0
     T = 1
     timestep = 0.05
-    timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
+    if cuda:
+        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)).cuda())
+    else:
+        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
+
     sigma = 1
     lambda_ = 1
     
     model = Net_Raissi(dim)
     optimizer = torch.optim.Adam(model.parameters(),lr=base_lr)
     
-    n_iter = 100  # to be changed
+    
+    if cuda:
+        model.cuda()
+    
+    n_iter = 10  # to be changed
     output_model = namedtuple('output', ['v', 'grad_v'])
     
     
     
     for it in range(n_iter):
         model.zero_grad()
-        x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
-        t = Variable(torch.zeros(batch_size, 1), requires_grad=True)
+        if cuda:
+            x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
+            t = Variable(torch.zeros((batch_size, 1)).cuda(), requires_grad=True)
+        else:
+            x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
+            t = Variable(torch.zeros(batch_size, 1), requires_grad=True)
         tx = torch.cat([t,x], dim=1)
         
-        v, grad_v  = model(tx) 
+        v, grad_v = [], []
+        for row in range(tx.size()[0]):
+            v1, grad_v1  = model(tx[row:row+1,]) 
+            v.append(v1)
+            grad_v.append(grad_v1)
+        v = torch.cat(v, dim=0)
+        grad_v = torch.cat(grad_v, dim=0)
         brownian = [output_model(v, grad_v)]  # we will save the brownian path
         
         error = []
         
         for i in range(1, len(timegrid)):
             h = timegrid[i]-timegrid[i-1]
-            xi = Variable(torch.randn(x.size()))
+            if cuda:
+                xi = Variable(torch.randn(x.size()).cuda())
+            else:
+                xi = Variable(torch.randn(x.size()))
             alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
             f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
             x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
             t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
             tx = torch.cat([t,x], dim=1)
-            v, grad_v  = model(tx) 
+            #v, grad_v  = model(tx) 
+            v, grad_v = [], []
+            for row in range(tx.size()[0]):
+                v1, grad_v1  = model(tx[row:row+1,]) 
+                v.append(v1)
+                grad_v.append(grad_v1)
+            v = torch.cat(v, dim=0)
+            grad_v = torch.cat(grad_v, dim=0)
             brownian.append(output_model(v, grad_v))
             error.append(brownian[-1].v - brownian[-2].v + 
                          f*h - 
