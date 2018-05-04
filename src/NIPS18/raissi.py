@@ -96,10 +96,13 @@ class Net_Raissi(nn.Module):
         output = self.h5_o(h5)
         
         # automatic differentiation
-        l = []
-        for row in range(x.size()[0]):
-            l.append(torch.autograd.grad(output[row],x, create_graph=True)[0])
-        output_grad = reduce(lambda x,y:x+y, l)
+        #l = []
+        #for row in range(x.size()[0]):
+        #    l.append(torch.autograd.grad(output[row],x, create_graph=True)[0])
+        #    #l.append(torch.autograd.grad(output[row],x)[0])#, create_graph=True)[0])
+        #output_grad = reduce(lambda x,y:x+y, l)
+        l = [output[row] for row in range(output.size()[0])]
+        output_grad = torch.autograd.grad(l, x, create_graph=True)[0]
         output_grad = output_grad[:,1:] # first coordinate of x is time, so we remove it 
         
         return output, output_grad
@@ -114,9 +117,9 @@ output, output_grad = model(x)
 
 def train():
     
-    batch_size = 10
-    base_lr = 0.05
-    dim = 10
+    batch_size = 100
+    base_lr = 0.001
+    dim = 100
     init_t = 0
     T = 1
     timestep = 0.05
@@ -134,10 +137,11 @@ def train():
     if cuda:
         model.cuda()
     
-    n_iter = 100  # to be changed
+    n_iter = 1000  # to be changed
     output_model = namedtuple('output', ['v', 'grad_v'])
     
     for it in range(n_iter):
+        print(it)
         model.zero_grad()
         if cuda:
             x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
@@ -161,119 +165,30 @@ def train():
                 xi = Variable(torch.randn(x.size()))
             alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
             f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
-            x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
-            t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
-            tx = torch.cat([t,x], dim=1)
-            v, grad_v  = model(tx) 
-            brownian.append(output_model(v, grad_v))
-            error.append(brownian[-1].v - brownian[-2].v + 
-                         f*h - 
-                         torch.diag(torch.matmul(brownian[-2].grad_v, sigma*torch.sqrt(h)*xi.transpose(1,0))))
-        
-        # we build the loss function from Raissi's paper
-        error = torch.cat(error, dim=0)
-        g = torch.log(0.5*(1+torch.norm(x,2,1)**2))   # terminal condition from Raissi's paper (also from Jentzen's paper)
-        g = g.view(batch_size,-1)
-        error_terminal = brownian[-1].v - g
-        loss = torch.sum(torch.norm(error,2,1)**2) + torch.sum(torch.norm(error_terminal,2,1)**2)
-        
-        # backpropagation
-        loss.backward()
-        
-        # Optimizer step
-        optimizer.step()
-        
-        # printing
-        print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
-        
-        
-def train_modified():
-    """
-    Autograd is taking very long for large batch sizes. We get the output of the model one by one and then
-    we concatenate
-    """
-    batch_size = 10
-    base_lr = 0.02
-    dim = 10
-    init_t = 0
-    T = 1
-    timestep = 0.05
-    if cuda:
-        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)).cuda())
-    else:
-        timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
-
-    sigma = 1
-    lambda_ = 1
-    
-    model = Net_Raissi(dim)
-    optimizer = torch.optim.Adam(model.parameters(),lr=base_lr)
-    
-    
-    if cuda:
-        model.cuda()
-    
-    n_iter = 10  # to be changed
-    output_model = namedtuple('output', ['v', 'grad_v'])
-    
-    
-    
-    for it in range(n_iter):
-        model.zero_grad()
-        if cuda:
-            x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
-            t = Variable(torch.zeros((batch_size, 1)).cuda(), requires_grad=True)
-        else:
-            x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
-            t = Variable(torch.zeros(batch_size, 1), requires_grad=True)
-        tx = torch.cat([t,x], dim=1)
-        
-        v, grad_v = [], []
-        for row in range(tx.size()[0]):
-            v1, grad_v1  = model(tx[row:row+1,]) 
-            v.append(v1)
-            grad_v.append(grad_v1)
-        v = torch.cat(v, dim=0)
-        grad_v = torch.cat(grad_v, dim=0)
-        brownian = [output_model(v, grad_v)]  # we will save the brownian path
-        
-        error = []
-        
-        for i in range(1, len(timegrid)):
-            h = timegrid[i]-timegrid[i-1]
-            if cuda:
-                xi = Variable(torch.randn(x.size()).cuda())
-            else:
-                xi = Variable(torch.randn(x.size()))
-            alpha = -math.sqrt(lambda_) * brownian[-1].grad_v  # to complete - make it general for any LQR problem
-            f = torch.norm(alpha,2,1)**2  # to complete - make it general for any LQR problem
             if cuda:
                 h = round(h.cpu().data[0],2)
                 x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*math.sqrt(h)*xi
+                x = Variable(x.data, requires_grad=True)
             else:
                 x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
             t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
+            t = Variable(t.data, requires_grad=True)
             tx = torch.cat([t,x], dim=1)
             #v, grad_v  = model(tx) 
-            v, grad_v = [], []
-            for row in range(tx.size()[0]):
-                v1, grad_v1  = model(tx[row:row+1,]) 
-                v.append(v1)
-                grad_v.append(grad_v1)
-            v = torch.cat(v, dim=0)
-            grad_v = torch.cat(grad_v, dim=0)
+
+            v, grad_v  = model(tx) 
             brownian.append(output_model(v, grad_v))
             if cuda:
                 #h = round(h.cpu().data[0],2)
                 error.append(brownian[-1].v - brownian[-2].v + 
                              f*h - 
-                             torch.diag(torch.matmul(brownian[-2].grad_v, sigma*math.sqrt(h)*xi.transpose(1,0))))
+                             torch.diag(torch.mm(brownian[-2].grad_v, sigma*math.sqrt(h)*xi.transpose(1,0))))
             else:
                 error.append(brownian[-1].v - brownian[-2].v + 
                              f*h - 
                              torch.diag(torch.matmul(brownian[-2].grad_v, sigma*torch.sqrt(h)*xi.transpose(1,0))))
         # we build the loss function from Raissi's paper
-        error = torch.cat(error, dim=0)
+        error = torch.cat(error, dim=1)
         g = torch.log(0.5*(1+torch.norm(x,2,1)**2))   # terminal condition from Raissi's paper (also from Jentzen's paper)
         g = g.view(batch_size,-1)
         error_terminal = brownian[-1].v - g
@@ -287,3 +202,5 @@ def train_modified():
         
         # printing
         print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
+        
+        
