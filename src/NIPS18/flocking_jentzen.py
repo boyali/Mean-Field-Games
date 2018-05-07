@@ -274,13 +274,19 @@ class MFG_flocking():
         model.eval()
         alpha = torch.zeros([len(self.timegrid)-1, self.dim])
         for t in range(len(self.timegrid)-1):
-            if t==0:
-                alpha[t] = -model.grad_v0
-            else:
-                h1 = model.i_h1[i-1](x)
-                h2 = model.h1_h2[i-1](h1)
-                grad = model.h2_o[i-1](h2)
+            if self.modified:
+                h1 = model.i_h1[i](x)
+                h2 = model.h1_h2[i](h1)
+                grad = model.h2_o[i](h2)
                 alpha[t] = -grad
+            else:
+                if t==0:
+                    alpha[t] = -model.grad_v0
+                else:
+                    h1 = model.i_h1[i-1](x)
+                    h2 = model.h1_h2[i-1](h1)
+                    grad = model.h2_o[i-1](h2)
+                    alpha[t] = -grad
         return alpha
             
         
@@ -370,10 +376,12 @@ def game_Jentzen_Flocking():
     
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep)
     law = [game.law]
+    models = []
     model = game.value_evaluation(n_iter=1500, base_lr=0.01, tol=0.0006)
     game.law_improvement(model, n_iter=30000)
     game.law
     law.append(game.law)
+    models.append(model)
     
     game.std_law
     
