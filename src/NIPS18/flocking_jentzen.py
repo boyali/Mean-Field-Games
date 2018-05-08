@@ -31,7 +31,10 @@ class Net_stacked(nn.Module):
     def __init__(self, dim, kappa, sigma, law, timegrid):
         super(Net_stacked, self).__init__()
         self.dim = dim
-        self.timegrid = Variable(torch.Tensor(timegrid))
+        if cuda:
+            self.timegrid = Variable(torch.Tensor(timegrid).cuda())
+        else:
+            self.timegrid = Variable(torch.Tensor(timegrid))
         self.law = law # law is a matrix with the same number of rows as timegrid (one per each timestep), and the same number of columns as dim
         self.kappa = kappa
         self.sigma = sigma
@@ -61,7 +64,11 @@ class Net_stacked(nn.Module):
         for i in range(0,len(self.timegrid)-1):
             
             h = self.timegrid[i+1]-self.timegrid[i]
-            xi = Variable(torch.randn(x.data.size()))
+            if cuda:
+                xi = Variable(torch.randn(x.data.size()).cuda())
+                h = round(h.cpu().data[0],2)
+            else:
+                xi = Variable(torch.randn(x.data.size()))
             
 
             dW.append(xi)
@@ -74,7 +81,10 @@ class Net_stacked(nn.Module):
                 f = (self.kappa**2)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha)**2
                 #v = self.v0 - f*h + self.grad_v0*self.sigma*xi.transpose(0,1)
                 #print('x.size={}\t xi.size={}\t v0.size={}\t f.size={}'.format(x.data.size(),xi.data.size(), self.v0.data.size(), f.data.size()))
-                v = self.v0 - f*h + torch.matmul(self.sigma*torch.sqrt(h)*xi, self.grad_v0)
+                if cuda:
+                    v = self.v0 - f*h + torch.mm(self.sigma*torch.sqrt(h)*xi, self.grad_v0)
+                else:
+                    v = self.v0 - f*h + torch.matmul(self.sigma*torch.sqrt(h)*xi, self.grad_v0)
             else:
                 h1 = self.i_h1[i-1](x)
                 h2 = self.h1_h2[i-1](h1)
@@ -106,7 +116,10 @@ class Net_stacked_modified(nn.Module):
     def __init__(self, dim, kappa, sigma, law, timegrid):
         super(Net_stacked_modified, self).__init__()
         self.dim = dim
-        self.timegrid = Variable(torch.Tensor(timegrid))
+        if cuda:
+            self.timegrid = Variable(torch.Tensor(timegrid).cuda())
+        else:
+            self.timegrid = Variable(torch.Tensor(timegrid))
         self.law = law # law is a matrix with the same number of rows as timegrid (one per each timestep), and the same number of columns as dim
         self.kappa = kappa
         self.sigma = sigma
@@ -146,7 +159,11 @@ class Net_stacked_modified(nn.Module):
             f = (self.kappa**2)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
             
             h = self.timegrid[i+1]-self.timegrid[i]
-            xi = Variable(torch.randn(x.data.size()))
+            if cuda:
+                xi = Variable(torch.randn(x.data.size()).cuda())
+                h = round(h.cpu().data[0],2)
+            else:
+                xi = Variable(torch.randn(x.data.size()))
             
             dW.append(xi)
             
@@ -155,9 +172,15 @@ class Net_stacked_modified(nn.Module):
                 v0 = self.v0_i_h1(x)
                 v0 = self.v0_h1_h2(v0)
                 v0 = self.v0_h2_o(v0)
-                v = v0 - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                if cuda:
+                    v = v0 - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                else:
+                    v = v0 - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
             else:
-                v = v - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                if cuda:
+                    v = v - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                else:
+                    v = v - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
             
             # we update x
             #x = x + (self.b*x + self.c*alpha) * h + self.sigma*xi
@@ -372,7 +395,10 @@ def game_Jentzen_Flocking():
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
     #law = Variable(torch.zeros([timegrid.size, dim]))
     law = np.random.normal(loc=1, scale=0.1, size=[timegrid.size, dim]) # the law is drawn from a normal distribution with mean 1, sd=0.1
-    law = Variable(torch.Tensor(law))
+    if cuda:
+        law = Variable(torch.Tensor(law).cuda())
+    else:
+        law = Variable(torch.Tensor(law))
     
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep)
     law = [game.law]
@@ -420,7 +446,10 @@ def game_Jentzen_Flocking_extended():
     #dim = 100
     dim = 10
     timegrid = np.around(np.arange(init_t, T+timestep/2, timestep), decimals=2)
-    law = Variable(torch.zeros([timegrid.size, dim]))
+    if cuda:
+        law = Variable(torch.zeros([timegrid.size, dim]).cuda())
+    else:
+        law = Variable(torch.zeros([timegrid.size, dim]))
     #law = np.random.normal(loc=0, scale=0.01, size=[timegrid.size, dim]) # the law is drawn from a normal distribution with mean 1, sd=0.1
     #law = Variable(torch.Tensor(law))
     
