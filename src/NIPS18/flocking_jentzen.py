@@ -156,7 +156,12 @@ class Net_stacked_modified(nn.Module):
             grad = self.h2_o[i](h2)
             grad_path.append(grad)
             alpha = -grad
-            f = (self.kappa**2)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
+            
+            if cuda:
+                law_i = torch.cat([self.law[i].view(1,-1)]*x.size()[0], 0)
+                f = (self.kappa**2)/2 * torch.norm(x-law_i,2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
+            else:
+                f = (self.kappa**2)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
             
             h = self.timegrid[i+1]-self.timegrid[i]
             if cuda:
@@ -173,18 +178,21 @@ class Net_stacked_modified(nn.Module):
                 v0 = self.v0_h1_h2(v0)
                 v0 = self.v0_h2_o(v0)
                 if cuda:
-                    v = v0 - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                    v = v0 - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*math.sqrt(h)*xi.transpose(1,0))).view(-1,1)
                 else:
                     v = v0 - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
             else:
                 if cuda:
-                    v = v - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
+                    v = v - (f*h).view(-1,1) + torch.diag(torch.mm(grad, self.sigma*math.sqrt(h)*xi.transpose(1,0))).view(-1,1)
                 else:
                     v = v - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*torch.sqrt(h)*xi.transpose(1,0))).view(-1,1)
             
             # we update x
             #x = x + (self.b*x + self.c*alpha) * h + self.sigma*xi
-            x = x + alpha * h + self.sigma*torch.sqrt(h)*xi
+            if cuda:
+                x = x + alpha * h + self.sigma*math.sqrt(h)*xi
+            else:
+                x = x + alpha * h + self.sigma*torch.sqrt(h)*xi
             path.append(x)
             
         return v , x, path #, grad_path, dW
@@ -278,14 +286,24 @@ class MFG_flocking():
         self.std_law = torch.cat(std_law,0)
         
     def law_improvement_modified(self, model, init_values, n_iter = 10000):
+        if cuda:
+            model.cuda()
         model.eval()
         improved_law = []
         for player in range(init_values.size()[0]):
-            input = Variable(torch.cat([init_values[player]*n_iter], dim=0))
+            law_player = []
+            print('MonteCarlo player {}/{}'.format(player, init_values.size()[0]))
+            if cuda:
+                input = Variable(torch.cat([init_values[player].data.view(1,-1)]*n_iter, dim=0).cuda())
+            else:
+                input = Variable(torch.cat([init_values[player].data.view(1,-1)]*n_iter, dim=0))
             _, _, path = model(input)
             for step in path:
-                improved_law.append(step.mean(0).view(1,-1))
-        self.law = torch.cat(improved_law, 0)
+                law_player.append(step.mean(0).view(1,-1))
+            law_player = torch.cat(law_player, 0)
+            improved_law.append(law_player)
+            
+        self.law = sum(improved_law)/len(improved_law)    
         self.law = Variable(self.law.data)
         
     
@@ -420,7 +438,7 @@ def game_Jentzen_Flocking_extended():
     sigma = 0.1
     init_t = 0
     T = 1
-    timestep = 0.01
+    timestep = 0.05
     
     # EXPLICIT SOLUTON OF FLOCKING MODEL FROM MFG BOOK (eq. 2.51)   
     flocking_mdp = flocking_model(N=100, h=0.05, kappa=1, sigma=0.01, T=10, dim=3)
@@ -453,12 +471,24 @@ def game_Jentzen_Flocking_extended():
     #law = np.random.normal(loc=0, scale=0.01, size=[timegrid.size, dim]) # the law is drawn from a normal distribution with mean 1, sd=0.1
     #law = Variable(torch.Tensor(law))
     
+    n_players = 50
+    
+    if cuda:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim])).cuda()
+    else:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim]))
+    init_values = Variable(init_values)
+    
+    
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep, modified=True)
     law = [game.law]
-    model, v0 = game.value_evaluation(n_iter=1500, base_lr=0.01, tol=0.00001)
-    game.law_improvement(model, n_iter=30000)
+    model = game.value_evaluation(n_iter=1500, base_lr=0.005, tol=0.01, batch_size=1000)
+    game.law_improvement_modified(model, init_values, n_iter=5000)
     game.law
     law.append(game.law)
+    
+    
+    
     
     game.std_law
     
