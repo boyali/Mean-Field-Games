@@ -8,7 +8,7 @@ from functools import reduce
 import shutil
 import time
 from numpy.linalg import norm
-import matplotlib.pyplot as plt
+#import matplotlib.pyplot as plt
 import copy
 import math
 from scipy.interpolate import spline
@@ -482,12 +482,14 @@ def game_Jentzen_Flocking_extended():
     
     game = MFG_flocking(dim=dim, kappa=1, sigma=0.01, law=law, init_t=0, T=1, timestep=timestep, modified=True)
     law = [game.law]
-    model = game.value_evaluation(n_iter=1500, base_lr=0.005, tol=0.01, batch_size=1000)
-    game.law_improvement_modified(model, init_values, n_iter=5000)
+
+
+    model = game.value_evaluation(n_iter=1500, base_lr=0.005, tol=0.01, batch_size=2000)
+    game.law_improvement_modified(model, init_values, n_iter=10000)
     game.law
     law.append(game.law)
     
-    
+    # compare it against solution of Flocking model
     
     
     game.std_law
