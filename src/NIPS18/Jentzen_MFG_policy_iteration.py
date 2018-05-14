@@ -12,6 +12,7 @@ from numpy.linalg import norm
 import copy
 import math
 from scipy.interpolate import spline
+import random
 
 cuda = False
 
@@ -25,15 +26,15 @@ class Net_alpha(nn.Module):
         super(Net_alpha, self).__init__()
         self.dim = dim
         
-        self.i_h1 = nn.hiddenLayer(dim+1, dim+10)
-        self.h1_h2 = nn.hiddenLayer(dim+10, dim+10)
-        self.h2_h3 = nn.hiddenLayer(dim+10, dim+10)
+        self.i_h1 = self.hiddenLayer(dim+1, dim+10)
+        self.h1_h2 = self.hiddenLayer(dim+10, dim+10)
+        self.h2_h3 = self.hiddenLayer(dim+10, dim+10)
         self.h3_o = nn.Linear(dim+10, dim)
         
     
     def hiddenLayer(self, nIn, nOut):
         layer = nn.Sequential(nn.Linear(nIn, nOut),
-                              nn.BatchNorm1d,
+                              nn.BatchNorm1d(nOut),
                               nn.ReLU())
         return layer
     
@@ -65,6 +66,7 @@ class Net_Jentzen(nn.Module):
         self.kappa = kappa
         self.sigma = sigma
         self.alpha = alpha
+        self.alpha.eval()
                 
         self.i_h1 = nn.ModuleList([self.hiddenLayer(dim, dim+50) for t in timegrid[:-1]])
         self.h1_h2 = nn.ModuleList([self.hiddenLayer(dim+50, dim+50) for t in timegrid[:-1]])
@@ -77,7 +79,7 @@ class Net_Jentzen(nn.Module):
     
     def hiddenLayer(self, nIn, nOut):
         layer = nn.Sequential(nn.Linear(nIn,nOut),
-                              #nn.BatchNorm1d(nOut), # if we use automatic differentiation we cannot use BatchNorm1d
+                              nn.BatchNorm1d(nOut), # if we use automatic differentiation we cannot use BatchNorm1d
                               nn.ReLU())
         return layer
     
@@ -227,9 +229,9 @@ def get_hessian_automatic_differentiation(index_t, x,netJentzen):
     """
     netJentzen.eval()
     
-    grad = netJentzen.i_h1[i](x)
-    grad = netJentzen.h1_h2[i](grad)
-    grad = netJentzen.h2_o[i](grad)   # grad is a matrix of shape (batch_size, dim) 
+    grad = netJentzen.i_h1[index_t](x)
+    grad = netJentzen.h1_h2[index_t](grad)
+    grad = netJentzen.h2_o[index_t](grad)   # grad is a matrix of shape (batch_size, dim) 
     
     diag_hess = []
     for col in range(x.size()[1]):  # each col is a dimension
@@ -254,18 +256,18 @@ def get_hessian_finite_diff(index_t, x, netJentzen):
     """
     netJentzen.eval()
     
-    grad = netJentzen.i_h1[i](x)
-    grad = netJentzen.h1_h2[i](grad)
-    grad = netJentzen.h2_o[i](grad)   # grad is a matrix of shape (batch_size, dim) 
+    grad = netJentzen.i_h1[index_t](x)
+    grad = netJentzen.h1_h2[index_t](grad)
+    grad = netJentzen.h2_o[index_t](grad)   # grad is a matrix of shape (batch_size, dim) 
     x.requires_grad=False
     h = 0.001
     diag_hess = []
     for col in range(x.size()[1]):
         y = copy.deepcopy(x)
         y[:,col] = y[:,col]+h
-        grad_h = netJentzen.i_h1[i](y)
-        grad_h = netJentzen.h1_h2[i](grad_h)
-        grad_h = netJentzen.h2_o[i](grad_h)   # grad is a matrix of shape (batch_size, dim) 
+        grad_h = netJentzen.i_h1[index_t](y)
+        grad_h = netJentzen.h1_h2[index_t](grad_h)
+        grad_h = netJentzen.h2_o[index_t](grad_h)   # grad is a matrix of shape (batch_size, dim) 
         hess =(grad_h-grad)/h
         diag_hess.append(hess[:,col].contiguous().view(-1,1))
     diag_hess_doff = torch.cat(diag_hess,1)
@@ -274,7 +276,7 @@ def get_hessian_finite_diff(index_t, x, netJentzen):
     
     
     
-def evaluation_step(batch_size, base_lar, n_iter, dim, kappa, sigma, init_t, T, timestep, n_players, law, alpha):
+def evaluation_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, law, alpha):
     """
     This function solves the PDE, with fixed law and alpha (control)
     Inputs:
@@ -294,8 +296,6 @@ def evaluation_step(batch_size, base_lar, n_iter, dim, kappa, sigma, init_t, T, 
     
     model.train()
     
-    v0 = []
-
     it = 0
     for it in range(n_iter):
         # parameter decay
@@ -325,56 +325,57 @@ def evaluation_step(batch_size, base_lar, n_iter, dim, kappa, sigma, init_t, T, 
     
     
 
-def policy_improvement_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, n_players, law, netJentzen):
+def policy_improvement_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, law, netJentzen):
     
-    timegrid = np.arange(init_t, T+timestep/2, timestep), decimals=2
+    timegrid = np.arange(init_t, T+timestep/2, timestep)
     model = Net_alpha(dim)
+    if cuda:
+        model.cuda()
     model.train()
     netJentzen.eval()
     
     optimizer = torch.optim.Adam(model.parameters(),lr=base_lr)
-    if cuda:
-        criterion = torch.nn.MSELoss().cuda()
-    else:
-        criterion = torch.nn.MSELoss()
-        
     
     for it in range(n_iter):
         # optimisation step decay
-        lr = base_lr * (0.5 ** (it // 100))
+        lr = base_lr * (0.5 ** (it // 1000))
         for param_group in optimizer.state_dict()['param_groups']:
             param_group['lr'] = lr
         optimizer.zero_grad()        
         if cuda:
-            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[batch_size, dim])).cuda()
+            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1, dim])).cuda()
         else:
-            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[batch_size, dim]))
+            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1, dim]))
         x = Variable(x)
-        loss = 0
-        for i in range(len(timegrid)):
-            t = torch.ones(batch_size,1)*timegrid[i]
-            if cuda:
-                t = Variable(t.cuda())
-            else:
-                t = Variable(t)
-            tx = torch.cat([t,x], 1)
-            alpha_tx = model(tx)
-            f = (kappa)/2 * torch.norm(x-law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
-            f = f.view(1,-1)
-            tr_hess = get_hessian_finite_diff(index_t=i, x=x, netJentzen=netJentzen)
-            
-            grad = netJentzen.i_h1[i](x)
-            grad = netJentzen.h1_h2[i](grad)
-            grad = netJentzen.h2_o[i](grad)   # grad is a matrix of shape (batch_size, dim) 
-            
-            pde = f + 0.5*sigma**2*tr_hess + alpha_tx*grad
-            loss = loss + torch.sum(torch.norm(pde,2,1)**2)
+        index_t = random.randint(0,len(timegrid)-2)
+        t = torch.ones(1,1)*timegrid[index_t]
+        if cuda:
+            t = Variable(t.cuda())
+        else:
+            t = Variable(t)
+        tx = torch.cat([t,x], 1)
+        alpha_tx = model(tx.view(1,-1))
+        #f = (kappa)/2 * torch.norm(x-law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
+        f = 0.5*torch.norm(alpha_tx,2,1)**2 # we just take the part of f where alpha is involved
+        f = f.view(-1,1)
+        #tr_hess = get_hessian_finite_diff(index_t=i, x=x, netJentzen=netJentzen)
+        #tr_hess = tr_hess.view(-1,1)
         
+        grad = netJentzen.i_h1[index_t](x.view(1,-1))
+        grad = netJentzen.h1_h2[index_t](grad)
+        grad = netJentzen.h2_o[index_t](grad)   # grad is a matrix of shape (batch_size, dim) 
+        
+        #pde = f + 0.5*sigma**2*tr_hess + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1)
+        pde = f + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1) # we just take the part of the pde where alpha is involved
+        loss = pde
+
         # backwards step
         loss.backward()
         
         # optimizer step
         optimizer.step()
+        print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}".format(it=it, n_iter=n_iter, loss=loss.cpu().data[0][0]))
+        
     return model
         
 
@@ -395,13 +396,62 @@ def law_improvement_step(netJentzen, init_values):
         for step in path:
             law_player.append(step.mean(0).view(1,-1))
         law_player = torch.cat(law_player, 0)
-        improed_law.append(law_player)
+        improved_law.append(law_player)
     law = sum(improved_law)/len(improved_law)
     return law
     
 
     
+def main():
     
+    batch_size=2000
+    base_lr=0.01
+    tol=0.0001
+    n_iter=500
+    dim = 10
+    kappa = 1
+    sigma = 0.1
+    init_t = 0
+    T = 2
+    timestep = 0.05
+    timegrid = np.arange(init_t, T+timestep/2, timestep)
+    
+    # number of players and init_values
+    n_players = 20
+    if cuda:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim])).cuda()
+    else:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim]))
+    init_values = Variable(init_values)
+    
+       
+    # 0. We initialise the law
+    if cuda:
+        law = Variable((torch.zeros([timegrid.size, dim])).cuda())
+    else:
+        law = Variable(torch.zeros([timegrid.size, dim]))
+    
+        
+    # 1. we initialise alpha
+    netAlpha = Net_alpha(dim=dim)
+    if cuda:
+        netAlpha.cuda()
+    
+    # 2. evaluation step: approximation of v to PDE    
+    netJentzen = evaluation_step(batch_size=batch_size, base_lr=base_lr, 
+                                 n_iter=n_iter, dim=dim, kappa=kappa, 
+                                 sigma=sigma, init_t=init_t, T=T, timestep=timestep, 
+                                 law=law, alpha=netAlpha)
+    # 3. Optimisation step: we minise alpha
+    netAlpha = policy_improvement_step(batch_size=100, base_lr=base_lr, n_iter=n_iter, 
+                                       dim=dim, kappa=kappa, sigma=sigma, 
+                                       init_t=init_t, T=T, timestep=timestep, 
+                                       law=law, netJentzen=netJentzen)
+    
+    # we have to repeat the above until convergence
+    
+    # 4. Law improvement: Monte Carlo to improve the law
+    law = law_improvement_step(netJentzen, init_values)
     
 
         
