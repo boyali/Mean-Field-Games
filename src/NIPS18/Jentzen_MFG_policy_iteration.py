@@ -17,6 +17,20 @@ import random
 cuda = True
 
 
+def save_checkpoint(state, it, value=True):
+    if value:
+        filename = '/floydhub/model_value_'+str(it)+'.pth.tar'
+    else:
+        filename = '/floydhub/model_alpha_'+str(it)+'.pth.tar'
+    torch.save(state, filename)
+
+
+def save_law(law, it):
+    law_numpy = law.data.cpu().numpy()
+    np.savetxt('/floydhub/law_'+str(it)+'.txt', law_numpy)
+
+
+
 class Net_alpha(nn.Module):
     """
     We create the alpha net
@@ -26,13 +40,23 @@ class Net_alpha(nn.Module):
         super(Net_alpha, self).__init__()
         self.dim = dim
         
-        self.i_h1 = self.hiddenLayer(dim+1, dim+100)
-        self.h1_h2 = self.hiddenLayer(dim+100, dim+100)
-        #self.h2_h3 = self.hiddenLayer(dim+100, dim+100)
-        #self.h3_h4 = self.hiddenLayer(dim+100, dim+100)
-        #self.h4_h5 = self.hiddenLayer(dim+100, dim+100)
-        #self.h5_o = nn.Linear(dim+100, dim)
-        self.h2_o = nn.Linear(dim+100, dim)
+        self.i_h1 = self.hiddenLayer(dim+1, dim+20)  # dim+1 because we have time
+        self.h1_h2 = self.hiddenLayer(dim+20, dim+20)
+        self.h2_h3 = self.hiddenLayer(dim+20, dim+20)
+        self.h3_h4 = self.hiddenLayer(dim+20, dim+20)
+        self.h4_h5 = self.hiddenLayer(dim+20, dim+20)
+        self.h5_h6 = self.hiddenLayer(dim+20, dim+20)
+        self.h5_h6 = self.hiddenLayer(dim+20, dim+20)
+        self.h6_h7 = self.hiddenLayer(dim+20, dim+20)
+        self.h7_h8 = self.hiddenLayer(dim+20, dim+20)
+        self.h8_h9 = self.hiddenLayer(dim+20, dim+20)
+        self.h9_h10 = self.hiddenLayer(dim+20, dim+20)
+        self.h10_h11 = self.hiddenLayer(dim+20, dim+20)
+        self.h11_h12 = self.hiddenLayer(dim+20, dim+20)
+        self.h12_h13 = self.hiddenLayer(dim+20, dim+20)
+        self.h13_h14 = self.hiddenLayer(dim+20, dim+20)
+        self.h14_h15 = self.hiddenLayer(dim+20, dim+20)
+        self.h15_o = nn.Linear(dim+20, dim) 
         
     
     def hiddenLayer(self, nIn, nOut):
@@ -44,49 +68,23 @@ class Net_alpha(nn.Module):
     def forward(self, tx):
         h1 = self.i_h1(tx)
         h2 = self.h1_h2(h1)
-        #h3 = self.h2_h3(h2)
-        #h4 = self.h3_h4(h3)
-        #h5 = self.h4_h5(h4)
-        #alpha = self.h5_o(h5)
-        alpha = self.h2_o(h2)
+        h3 = self.h2_h3(h2)
+        h4 = self.h3_h4(h3)
+        h5 = self.h4_h5(h4)
+        h6 = self.h5_h6(h5)
+        h7 = self.h6_h7(h6)
+        h8 = self.h7_h8(h7)
+        h9 = self.h8_h9(h8)
+        h10 = self.h9_h10(h9)
+        h11 = self.h10_h11(h10)
+        h12 = self.h11_h12(h11)
+        h13 = self.h12_h13(h12)
+        h14 = self.h13_h14(h13)
+        h15 = self.h14_h15(h14)
+        alpha = self.h15_o(h15)
         return alpha
-#    
-#class Net_alpha(nn.Module):
-#    def __init__(self, dim):
-#        super(Net_alpha, self).__init__()
-#        self.dim = dim
-#        
-#        self.i_h1 = nn.Sequential(nn.Linear(dim+1, 100), nn.ReLU())
-#        self.i_h2 = nn.Sequential(nn.Linear(dim+1, 100), nn.Tanh())
-#        self.h3_o = nn.Linear(100,dim)
-#    
-#    def forward(self,tx):
-#        h1 = self.i_h1(tx)
-#        h2 = self.i_h2(tx)
-#        h3 = h1*h2
-#        o = self.h3_o(h3)
-#        return o
 
 
-
-#class Net_alpha(nn.Module):
-#    def __init__(self, dim):
-#        super(Net_alpha, self).__init__()
-#        self.dim = dim
-#        
-#        self.i_h1 = nn.Sequential(nn.Linear(dim+1, 50), nn.ReLU())
-#        self.i_h2 = nn.Sequential(nn.Linear(dim+1, 50), nn.Tanh())
-#        self.i_h4 = nn.Sequential(nn.Linear(dim+1, 50), nn.ReLU())
-#        self.h4_o = nn.Linear(100,dim)
-#    
-#    def forward(self,tx):
-#        h1 = self.i_h1(tx)
-#        h2 = self.i_h2(tx)
-#        h3 = h1*h2
-#        h4 = self.i_h4(tx)
-#        h4 = torch.cat([h3,h4],1)
-#        o = self.h4_o(h4)
-#        return o
 
 class Net_Jentzen_1network(nn.Module):
     """
@@ -97,25 +95,51 @@ class Net_Jentzen_1network(nn.Module):
     The dynamics of the major player are given in the report. 
     """
     
-    def __init__(self, dim, kappa, sigma, law, timegrid):
+    def __init__(self, dim, kappa, sigma, timegrid):
         super(Net_Jentzen_1network, self).__init__()
         self.dim = dim
         if cuda:
             self.timegrid = torch.Tensor(timegrid).cuda()
         else:
             self.timegrid = torch.Tensor(timegrid)
-        self.law = law # law is a matrix with the same number of rows as timegrid (one per each timestep), and the same number of columns as dim
+        #self.law = law # law is a matrix with the same number of rows as timegrid (one per each timestep), and the same number of columns as dim
         self.kappa = kappa
         self.sigma = sigma
         netAlpha.eval()
         
-        self.i_h1 = self.hiddenLayer(dim+1, dim+100)  # dim+1 because we have time
-        self.h1_h2 = self.hiddenLayer(dim+100, dim+100)
-        self.h2_o = nn.Linear(dim+100, dim)  
+        self.i_h1 = self.hiddenLayer(dim+1, dim+20)  # dim+1 because we have time
+        self.h1_h2 = self.hiddenLayer(dim+20, dim+20)
+        self.h2_h3 = self.hiddenLayer(dim+20, dim+20)
+        self.h3_h4 = self.hiddenLayer(dim+20, dim+20)
+        self.h4_h5 = self.hiddenLayer(dim+20, dim+20)
+        self.h5_h6 = self.hiddenLayer(dim+20, dim+20)
+        self.h6_h7 = self.hiddenLayer(dim+20, dim+20)
+        self.h7_h8 = self.hiddenLayer(dim+20, dim+20)
+        self.h8_h9 = self.hiddenLayer(dim+20, dim+20)
+        self.h9_h10 = self.hiddenLayer(dim+20, dim+20)
+        self.h10_h11 = self.hiddenLayer(dim+20, dim+20)
+        self.h11_h12 = self.hiddenLayer(dim+20, dim+20)
+        self.h12_h13 = self.hiddenLayer(dim+20, dim+20)
+        self.h13_h14 = self.hiddenLayer(dim+20, dim+20)
+        self.h14_h15 = self.hiddenLayer(dim+20, dim+20)
+        self.h15_o = nn.Linear(dim+20, dim)  
                 
-        self.v0_i_h1 = self.hiddenLayer(dim, dim+100)
-        self.v0_h1_h2 = self.hiddenLayer(dim+100, dim+100)
-        self.v0_h2_o = nn.Linear(dim+100, 1)
+        self.v0_i_h1 = self.hiddenLayer(dim, dim+20)
+        self.v0_h1_h2 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h2_h3 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h3_h4 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h4_h5 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h5_h6 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h6_h7 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h7_h8 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h8_h9 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h9_h10 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h10_h11 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h11_h12 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h12_h13 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h13_h14 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h14_h15 = self.hiddenLayer(dim+20, dim+20)
+        self.v0_h15_o = nn.Linear(dim+20, 1)
         
     
     def hiddenLayer(self, nIn, nOut):
@@ -131,8 +155,9 @@ class Net_Jentzen_1network(nn.Module):
     def forward(self, x):
         path = [x]
         dW = []
+        
         for i in range(0,len(self.timegrid)-1):
-                        #we calculate the alpha
+            #we calculate the alpha
             t = torch.ones(x.size()[0], 1)*self.timegrid[i]
             if cuda:
                 t = Variable(t.cuda())
@@ -140,11 +165,31 @@ class Net_Jentzen_1network(nn.Module):
                 t = Variable(t)
             tx = torch.cat([t,x],1)
             alpha_tx = netAlpha(tx)
+            
             h1 = self.i_h1(tx)
             h2 = self.h1_h2(h1)
-            grad = self.h2_o(h2)
+            h3 = self.h2_h3(h2)
+            h4 = self.h3_h4(h3)
+            h5 = self.h4_h5(h4)
+            h6 = self.h5_h6(h5)
+            h7 = self.h6_h7(h6)
+            h8 = self.h7_h8(h7)
+            h9 = self.h8_h9(h8)
+            h10 = self.h9_h10(h9)
+            h11 = self.h10_h11(h10)
+            h12 = self.h11_h12(h11)
+            h13 = self.h12_h13(h12)
+            h14 = self.h13_h14(h13)
+            h15 = self.h14_h15(h14)
+            grad = self.h15_o(h15)
             
-            f = (self.kappa)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
+            #kernel1 = torch.exp(-(x-self.law[i]-(-0.8))**2/(2*0.08**2))
+            #kernel2 = torch.exp(-(x-self.law[i]-(0.8))**2/(2*0.08**2))
+            #kernel = kernel1+kernel2
+            #f = torch.norm(kernel,2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
+
+            
+            f = (self.kappa)/2 * torch.norm(x-law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
             #f = -(self.kappa)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
             
             h = self.timegrid[i+1]-self.timegrid[i]
@@ -160,7 +205,20 @@ class Net_Jentzen_1network(nn.Module):
             if i == 0:
                 v0 = self.v0_i_h1(x)
                 v0 = self.v0_h1_h2(v0)
-                v0 = self.v0_h2_o(v0)
+                v0 = self.v0_h2_h3(v0)
+                v0 = self.v0_h3_h4(v0)
+                v0 = self.v0_h4_h5(v0)
+                v0 = self.v0_h5_h6(v0)
+                v0 = self.v0_h6_h7(v0)
+                v0 = self.v0_h7_h8(v0)
+                v0 = self.v0_h8_h9(v0)
+                v0 = self.v0_h9_h10(v0)
+                v0 = self.v0_h10_h11(v0)
+                v0 = self.v0_h11_h12(v0)
+                v0 = self.v0_h12_h13(v0)
+                v0 = self.v0_h13_h14(v0)
+                v0 = self.v0_h14_h15(v0)
+                v0 = self.v0_h15_o(v0)
                 if cuda:
                     v = v0 - (f*h).view(-1,1) + torch.diag(torch.matmul(grad, self.sigma*math.sqrt(h)*xi.transpose(1,0))).view(-1,1)
                 else:
@@ -193,7 +251,7 @@ class Net_Jentzen(nn.Module):
     The dynamics of the major player are given in the report. 
     """
     
-    def __init__(self, dim, kappa, sigma, law, timegrid):
+    def __init__(self, dim, kappa, sigma, timegrid):
         super(Net_Jentzen, self).__init__()
         self.dim = dim
         if cuda:
@@ -241,7 +299,7 @@ class Net_Jentzen(nn.Module):
             tx = torch.cat([t,x],1)
             alpha_tx = netAlpha(tx)
             
-            f = (self.kappa)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
+            f = (self.kappa)/2 * torch.norm(x-law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
             #f = -(self.kappa)/2 * torch.norm(x-self.law[i],2,1)**2 +  0.5*torch.norm(alpha,2,1)**2
             
             h = self.timegrid[i+1]-self.timegrid[i]
@@ -413,7 +471,7 @@ def get_hessian_finite_diff(index_t, x, netJentzen):
     
     
     
-def evaluation_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, law):
+def evaluation_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, eps):
     """
     This function solves the PDE, with fixed law and alpha (control)
     Inputs:
@@ -434,8 +492,11 @@ def evaluation_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, t
     netJentzen.train()
     
     it = 0
-    for it in range(n_iter):
-        
+    #for it in range(n_iter):
+    value_converges = False
+    while (not value_converges) and it<400:
+        #while it<n_iter:
+        it +=1
         # parameter decay
         lr = base_lr * (0.5 ** (it // 50))
         for param_group in optimizer.state_dict()['param_groups']:
@@ -467,65 +528,17 @@ def evaluation_step(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, t
         end_time = time.time()
         #print('time backward optimization step: {:.4f}'.format(end_time-init_time))     
         print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}".format(it=it, n_iter=n_iter, loss=loss.data[0]))
-    
-    print('Its over!!!')
+        if loss.data.cpu()[0]<eps:
+            value_converges = True
+        
+
     #return model
     
     
 
-def policy_improvement_step_old(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, law):
-    
-    timegrid = np.arange(init_t, T+timestep/2, timestep)
-    #model = Net_alpha(dim)
-    netAlpha.train()
-    netJentzen.eval()
-    
-    optimizer = torch.optim.Adam(netAlpha.parameters(),lr=base_lr)
-    optimizer = torch.optim.SGD(netAlpha.parameters(),lr=base_lr, momentum=0.9, nesterov=True)
-    
-    for it in range(n_iter):
-        # optimisation step decay
-        #for param_group in optimizer.state_dict()['param_groups']:
-        #lr = base_lr * (0.5 ** (it // 1000))
-        #    param_group['lr'] = lr
-        optimizer.zero_grad()        
-        if cuda:
-            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1, dim])).cuda()
-        else:
-            x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1, dim]))
-        x = Variable(x)
-        index_t = random.randint(0,len(timegrid)-2)
-        t = torch.ones(1,1)*timegrid[index_t]
-        if cuda:
-            t = Variable(t.cuda())
-        else:
-            t = Variable(t)
-        tx = torch.cat([t,x], 1)
-        alpha_tx = netAlpha(tx.view(1,-1))
-        #f = (kappa)/2 * torch.norm(x-law[i],2,1)**2 +  0.5*torch.norm(alpha_tx,2,1)**2
-        f = 0.5*torch.norm(alpha_tx,2,1)**2 # we just take the part of f where alpha is involved
-        f = f.view(-1,1)
-        #tr_hess = get_hessian_finite_diff(index_t=i, x=x, netJentzen=netJentzen)
-        #tr_hess = tr_hess.view(-1,1)
-        
-        grad = netJentzen.i_h1[index_t](x.view(1,-1))
-        grad = netJentzen.h1_h2[index_t](grad)
-        grad = netJentzen.h2_o[index_t](grad)   # grad is a matrix of shape (batch_size, dim) 
-        
-        #pde = f + 0.5*sigma**2*tr_hess + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1)
-        pde = f + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1) # we just take the part of the pde where alpha is involved
-        loss = pde
 
-        # backwards step
-        loss.backward()
-        
-        # optimizer step
-        optimizer.step()
-        print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}".format(it=it, n_iter=n_iter, loss=loss.cpu().data[0][0]))
-        
-    #return model
     
-def policy_improvement_step_new(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, law):
+def policy_improvement_step_new(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep, eps):
     
     timegrid = np.arange(init_t, T+timestep/2, timestep)
     #model = Net_alpha(dim)
@@ -535,9 +548,14 @@ def policy_improvement_step_new(batch_size, base_lr, n_iter, dim, kappa, sigma, 
     optimizer = torch.optim.Adam(netAlpha.parameters(),lr=base_lr)
     #optimizer = torch.optim.SGD(netAlpha.parameters(),lr=base_lr, momentum=0.9, nesterov=True)
     
-    for it in range(n_iter):
+    alpha_converges = False
+    #for it in range(n_iter):
+    it = 0
+    while (not alpha_converges) and it<1000:
+        #while it<n_iter:
         # optimisation step decay
-        lr = base_lr * (0.5 ** (it // 1000))
+        it+=1
+        lr = base_lr * (0.5 ** (it // 500))
         for param_group in optimizer.state_dict()['param_groups']:
             param_group['lr'] = lr
         
@@ -547,8 +565,6 @@ def policy_improvement_step_new(batch_size, base_lr, n_iter, dim, kappa, sigma, 
         else:
             x = torch.Tensor(np.random.uniform(low=-1, high=1, size=[batch_size, dim]))
         x = Variable(x)
-        #index_t = random.randint(0,len(timegrid)-2)
-        #t = torch.ones(1,1)*timegrid[index_t]
         t_numpy = np.random.choice(timegrid[:-1], size=(batch_size, 1))
         if cuda:
             t = Variable(torch.Tensor(t_numpy).cuda())
@@ -558,31 +574,47 @@ def policy_improvement_step_new(batch_size, base_lr, n_iter, dim, kappa, sigma, 
         alpha_tx = netAlpha(tx)
         grad = netJentzen.i_h1(tx)
         grad = netJentzen.h1_h2(grad)
-        grad = netJentzen.h2_o(grad)
-        
-        
-        #pde = f + 0.5*sigma**2*tr_hess + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1)
+        grad = netJentzen.h2_h3(grad)
+        grad = netJentzen.h3_h4(grad)
+        grad = netJentzen.h4_h5(grad)
+        grad = netJentzen.h5_h6(grad)
+        grad = netJentzen.h6_h7(grad)
+        grad = netJentzen.h7_h8(grad)
+        grad = netJentzen.h8_h9(grad)
+        grad = netJentzen.h9_h10(grad)
+        grad = netJentzen.h10_h11(grad)
+        grad = netJentzen.h11_h12(grad)
+        grad = netJentzen.h12_h13(grad)
+        grad = netJentzen.h13_h14(grad)
+        grad = netJentzen.h14_h15(grad)
+        grad = netJentzen.h15_o(grad)
+
         # we define H(t,x,alpha,grad_v) = f(t,x) + b(t,x,alpha)*grad_v(t,x). This is what we want ot minimise in terms of alpha. Therefore we want grad_alpha H to be 0
         grad_H = alpha_tx + grad
         
         #pde = f + torch.diag(torch.matmul(alpha_tx, grad.transpose(1,0))).view(-1,1) # we just take the part of the pde where alpha is involved
-        loss = torch.sum(torch.norm(grad_H,2,1)**2)
+        loss = 1/batch_size*torch.sum(torch.norm(grad_H,2,1)**2)
 
         # backwards step
         loss.backward()
+        if loss.cpu().data[0]<eps:
+            alpha_converges = True
         
         # optimizer step
         optimizer.step()
         print("Iteration=[{it}/{n_iter}]\t loss={loss:.5f}".format(it=it, n_iter=n_iter, loss=loss.cpu().data[0]))
         
     #return model
-        
+    
 
-        
-def law_improvement_step(netJentzen, init_values):
+def law_improvement_step(init_values, n_iter = 1000):
+    """
+    Monte Carlo based law improvement step
+    """
     if cuda:
         netJentzen.cuda()
     netJentzen.eval()
+    netAlpha.eval()
     improved_law = []
     for player in range(init_values.size()[0]):
         law_player = []
@@ -597,20 +629,19 @@ def law_improvement_step(netJentzen, init_values):
         law_player = torch.cat(law_player, 0)
         improved_law.append(law_player)
     law = sum(improved_law)/len(improved_law)
-    return law
-    
+    law = Variable(law.data)
+    return law    
 
     
-def main():
-    
-    batch_size=500
-    base_lr=0.05
-    n_iter=200
-    dim = 100
-    kappa = 1
+def evaluation_improvement_law_new(batch_size, base_lr, n_iter, dim, kappa, sigma, init_t, T, timestep):
+    batch_size=1000
+    base_lr=0.005
+    n_iter=50
+    dim = 10
+    kappa = 10
     sigma = 0.1
     init_t = 0
-    T = 2
+    T = 1
     timestep = 0.05
     timegrid = np.arange(init_t, T+timestep/2, timestep)
     
@@ -618,16 +649,19 @@ def main():
     n_players = 20
     if cuda:
         init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim])).cuda()
+        batch_space_to_measure_alpha = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1000, dim])).cuda()
     else:
         init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim]))
+        batch_space_to_measure_alpha = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1000, dim]))
+
+    batch_space_to_measure_alpha = Variable(batch_space_to_measure_alpha)
     init_values = Variable(init_values)
     
-       
     # 0. We initialise the law
     if cuda:
         law = Variable((torch.zeros([timegrid.size, dim])).cuda())
     else:
-        law     = Variable(torch.zeros([timegrid.size, dim]))
+        law = Variable(torch.zeros([timegrid.size, dim]))
     
         
     # 1. we initialise alpha
@@ -635,37 +669,271 @@ def main():
     if cuda:
         netAlpha.cuda()
     
-    # 2. evaluation step: approximation of v to PDE    
-    netJentzen = Net_Jentzen_1network(dim=dim, kappa=kappa, sigma=sigma, law=law, timegrid=timegrid)
+    # 2. we initialise the value function
+    netJentzen = Net_Jentzen_1network(dim=dim, kappa=kappa, sigma=sigma, timegrid=timegrid)
     if cuda:
         netJentzen.cuda()
-    netJentzen.train()
-    netAlpha.eval()    
-    evaluation_step(batch_size=batch_size, base_lr=base_lr, 
-                    n_iter=500, dim=dim, kappa=kappa, 
-                    sigma=sigma, init_t=init_t, T=T, timestep=timestep, 
-                    law=law)
-    # 3. Policy optimisation step: we minise alpha
-    netAlpha = Net_alpha(dim=dim)
+
+    timegrid = np.arange(init_t, T+timestep/2, timestep)
+    if cuda:
+        netJentzen.cuda()
     if cuda:
         netAlpha.cuda()
-    netAlpha.train()
-    netJentzen.eval()
-    policy_improvement_step_new(batch_size=3000, base_lr=0.02, n_iter=1000, 
-                            dim=dim, kappa=kappa, sigma=sigma, 
-                            init_t=init_t, T=T, timestep=timestep, 
-                            law=law)
+        
     
-    # we have to repeat the above until convergence
     
-    # 4. Law improvement: Monte Carlo to improve the law
-    netJentzen.eval()
-    law = law_improvement_step(netJentzen, init_values)
+
+    it = 0
+    laws = [law]    
+    alphas =[getNorm_alpha_from_batch(batch_space_to_measure_alpha)]
+    norm_values = [getNorm_value_from_batch(batch_space_to_measure_alpha)]
+    for it in range(n_iter):
+        print('Iteration {}/{}'.format(it, n_iter))
+        #######################################
+        # Gradient Descent for value function #
+        #######################################
+        evaluation_step(batch_size=batch_size, base_lr=base_lr, 
+                        dim=dim, kappa=kappa, sigma=sigma, init_t=init_t, 
+                        T=T, timestep=timestep, n_iter=30, eps=0.1)
+        a = getNorm_value_from_batch(batch_space_to_measure_alpha)
+        norm_values.append(a)
+        
+        # Gradient descent for policy function
+        policy_improvement_step_new(batch_size=batch_size, base_lr=base_lr, 
+                                    dim=dim, kappa=kappa, sigma=sigma, 
+                                    init_t=init_t, T=T, timestep=timestep, n_iter=30, eps=0.1)
+        alphas.append(getNorm_alpha_from_batch(batch_space_to_measure_alpha))
+        
+        # Monte Carlo based law improvement
+        if (it+1)%10==0: 
+            law = law_improvement_step(init_values)
+            laws.append(law)
+            
+
+
+
+
+
     
+    
+#    netAlpha.eval()
+#    x1 = np.arange(-1,1,0.01)
+#    xx = []
+#    policies = []
+#    for xx1 in x1:
+#        coord1 = torch.Tensor([xx1]).cuda().view(1,-1)
+#        x = torch.cat([coord1,torch.zeros(1, dim-1).cuda()],1)
+#        x = Variable(x)
+#        xx.append(x)
+#        pol = torch.zeros([len(timegrid)-1, dim])
+#        for i in range(len(timegrid)-1):
+#            t = Variable((torch.ones(1,1)*timegrid[i]).cuda())            
+#            tx = torch.cat([t,x], dim=1)
+#            alpha_tx = netAlpha(tx)
+#            pol[i] = alpha_tx.data.view(-1)
+#
+#        policies.append(pol)
+#        
+#    pol_1st = [p[:,0].contiguous().view(-1,1) for p in policies]  # each row: time. Each column: x
+#    pol_1st = torch.cat(pol_1st, 1).numpy()  # matrix of shape timegrid x xgrid
+#    np.savetxt('pol_1st.txt', pol_1st)
+#    pol_1st = np.loadtxt('pol_1st.txt')
+#        
+#    X_grid, Y_grid = np.meshgrid(x1, timegrid[:-1])
+#    fig = plt.figure()
+#    ax = fig.gca(projection='3d')
+#    
+#    ax.plot_surface(X_grid, Y_grid, pol_1st, cmap="coolwarm",
+#                           linewidth=0, antialiased=False)
 
         
         
+    
+def getNorm_alpha_from_batch(batch_space_to_measure_alpha):
+    """
+    Since we have exponential number of points in a grid of dimension 100,
+    we will get the norm of the alpha at timegrid x init_values
+    """
+    netAlpha.eval()
+    timegrid = np.arange(init_t, T+timestep/2, timestep)
+    input = batch_space_to_measure_alpha
+    if cuda:
+        t = torch.cat([torch.ones((batch_space_to_measure_alpha.size()[0], 1))*tt for tt in timegrid[:-1]], 0)
+        t = t.cuda()
+    else:
+        t = torch.cat([torch.ones((batch_space_to_measure_alpha.size()[0], 1))*tt for tt in timegrid[:-1]], 0)
+    
+    t = Variable(t)
+    input = torch.cat([input]*(len(timegrid)-1),0)
+    tx = torch.cat([t,input],1)
+    alpha_tx = netAlpha(tx)
+    return alpha_tx
+
+def getNorm_value_from_batch(batch_space_to_measure_alpha):
+    """
+    Since we have exponential number of points in a grid of dimension 100,
+    we will get the norm of the alpha at timegrid x init_values
+    """
+    netJentzen.eval()
+    
+    x = batch_space_to_measure_alpha
+    
+    v0 = netJentzen.v0_i_h1(x)
+    v0 = netJentzen.v0_h1_h2(v0)
+    v0 = netJentzen.v0_h2_h3(v0)
+    v0 = netJentzen.v0_h3_h4(v0)
+    v0 = netJentzen.v0_h4_h5(v0)
+    v0 = netJentzen.v0_h5_h6(v0)
+    v0 = netJentzen.v0_h6_h7(v0)
+    v0 = netJentzen.v0_h7_h8(v0)
+    v0 = netJentzen.v0_h8_h9(v0)
+    v0 = netJentzen.v0_h9_h10(v0)
+    v0 = netJentzen.v0_h10_h11(v0)
+    v0 = netJentzen.v0_h11_h12(v0)
+    v0 = netJentzen.v0_h12_h13(v0)
+    v0 = netJentzen.v0_h13_h14(v0)
+    v0 = netJentzen.v0_h14_h15(v0)
+    v0 = netJentzen.v0_h15_o(v0)
+    
+    return v0
+    
+    
         
+    
+def algorithm1():
+    
+    batch_size=1000
+    base_lr=0.005
+    n_iter=200
+    dim = 10
+    kappa = 5
+    sigma = 0.1
+    init_t = 0
+    T = 1
+    timestep = 0.05
+    timegrid = np.arange(init_t, T+timestep/2, timestep)
+    eps = 20
+    
+    # number of players and init_values
+    n_players = 30
+    if cuda:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim])).cuda()
+        batch_space_to_measure_alpha = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1000, dim])).cuda()
+    else:
+        init_values = torch.Tensor(np.random.uniform(low=-1, high=1, size=[n_players, dim]))
+        batch_space_to_measure_alpha = torch.Tensor(np.random.uniform(low=-1, high=1, size=[1000, dim]))
+
+    init_values = Variable(init_values)
+    batch_space_to_measure_alpha = Variable(batch_space_to_measure_alpha)    
+       
+    # 0. We initialise the law
+    if cuda:
+        law = Variable((torch.zeros([timegrid.size, dim])).cuda())
+    else:
+        law = Variable(torch.zeros([timegrid.size, dim]))
+    laws = [law]
+        
+    
+    law_ierations = 5
+    max_law_it = 5
+
+    netAlpha = Net_alpha(dim=dim)
+    if cuda:
+        netAlpha.cuda()
+
+    netJentzen = Net_Jentzen_1network(dim=dim, kappa=kappa, sigma=sigma, timegrid=timegrid)
+    if cuda:
+        netJentzen.cuda()
+    
+
+    norm_alphas = []
+    norm_values = []
+    for law_it in range(law_ierations):
+        
+        #while not alpha_converges:
+        #for i in range(3):
+        alpha_converges = False
+        norm_alphas_iteration = []
+        netAlpha.eval()
+        a = getNorm_alpha_from_batch(batch_space_to_measure_alpha)
+        norm_alphas_iteration.append(a)
+        max_law_it = 0
+        while not alpha_converges:
+            max_law_it += 1
+            # 2. evaluation step: approximation of v to PDE              
+            netJentzen.train()
+            netAlpha.eval()   
+            evaluation_step(batch_size=1000, base_lr=0.005, 
+                            n_iter=300, dim=dim, kappa=kappa, 
+                            sigma=sigma, init_t=init_t, T=T, timestep=timestep, eps=0.6) 
+            save_checkpoint(netJentzen.state_dict(), law_it, value=True)
+            a = getNorm_value_from_batch(batch_space_to_measure_alpha)
+            norm_values.append(a)
+            # 3. Policy optimisation step: we minise alpha
+            netAlpha.train()
+            netJentzen.eval()
+            policy_improvement_step_new(batch_size=4000, base_lr=0.005, n_iter=1000, #n_iter = 3000, 
+                                    dim=dim, kappa=kappa, sigma=sigma, 
+                                    init_t=init_t, T=T, timestep=timestep, eps=0.4)
+            save_checkpoint(netAlpha.state_dict(), law_it, value=False)
+                                    
+            netAlpha.eval()
+            a = getNorm_alpha_from_batch(batch_space_to_measure_alpha)
+            norm_alphas_iteration.append(a)
+            norm_alphas.append(a)
+            
+            
+            # we check for convergence
+            if len(norm_alphas_iteration)>1:
+                diff = norm_alphas_iteration[-1]-norm_alphas_iteration[-2]
+                n = torch.sum(torch.norm(diff,2,1)**2)/norm_alphas_iteration[-1].size()[0]
+                n = n.data.cpu()[0]
+                print("norm difference alphas is {:.4f}".format(n))
+                if n<1 or max_law_it>5:
+                    alpha_converges=True
+    
+        
+        # 4. Law improvement: Monte Carlo to improve the law
+        netJentzen.eval()
+        netAlpha.eval()
+        law = law_improvement_step(init_values)
+        if cuda:
+            law = law.cpu().data
+            law = Variable(law.cuda())
+        else:
+            law = law.data
+            law = Variable(law)
+        laws.append(law)
+        save_law(law, law_it)
+
+
+# compare laws
+norms = []
+for i in range(len(laws)-1):
+    norms.append(torch.sum(torch.norm(laws[i+1]-laws[i],2,1)**2)/laws[i].size()[0])
+norms = [norms[i].data.cpu()[0] for i in range(len(norms))]
+normsLaw = np.array(norms)
+np.savetxt('normsLaw.txt', normsLaw)
+
+normsA = []
+for i in range(len(alphas)-1):
+    normsA.append(torch.sum(torch.norm(alphas[i+1]-alphas[i],2,1)**2)/alphas[i].size()[0])
+normsA = [normsA[i].data.cpu()[0] for i in range(len(normsA))]
+norsmA = np.array(normsA)
+np.savetxt('normsAlpha.txt', normsA)
+
+os.chdir('/Users/msabate/Projects/Turing/Mean-Field-Games/src/NIPS18/images')
+normsA = np.loadtxt('normsAlpha.txt')
+fig, ax = plt.subplots(figsize=(8,5))
+ax.plot(normsA, 'o-')
+
+
+os.chdir('/Users/msabate/Projects/Turing/Mean-Field-Games/src/NIPS18/images')
+normsLaw = np.loadtxt('normsLaw.txt')
+fig, ax = plt.subplots(figsize=(8,5))
+ax.plot(normsLaw, 'o-')
+
+
     
 #################### TEST
 netJentzen.eval()
@@ -679,34 +947,40 @@ for i in range(init_values.size()[0]):
 
 
 
-player = 0
+player = 1
 x = init_values[player].view(1,-1)
 v0 = netJentzen.v0_i_h1(x)
 v0 = netJentzen.v0_h1_h2(v0)
 v0 = netJentzen.v0_h2_o(v0)
 
-t = (torch.ones(1,1)*timegrid[23]).cuda()
+t = (torch.ones(1,1)*timegrid[0]).cuda()
 t = Variable(t)
 tx = torch.cat([t,x], 1)
 grad = netJentzen.i_h1(tx)
 grad = netJentzen.h1_h2(grad)
-grad = netJentzen.h2_o(grad)
+grad = netJentzen.h2_h3(grad)
+grad = netJentzen.h3_o(grad)
 alpha = netAlpha(tx)
 
 paths = []
 netJentzen.eval()
+netAlpha.eval()
 for player in range(init_values.size()[0]):
-        print('player {}'.format(player))
-        x = init_values[player].view(1,-1)
-        v,_,path = netJentzen(x)
-        path = torch.cat(path, 0)
-        paths.append(path.cpu().data.numpy())
+    print('player {}'.format(player))
+    x = init_values[player].view(1,-1)
+    v,_,path = netJentzen(x)
+    path = torch.cat(path, 0)
+    paths.append(path.cpu().data.numpy())
     
     
 os.chdir('/floydhub')
 for i in range(len(paths)):
     np.savetxt('path_'+str(i)+'.txt', paths[i])
-    
+
+
+import glob
+import numpy as np
+import matplotlib.pyplot as plt    
 path = glob.glob('path*')
     
 paths = []
