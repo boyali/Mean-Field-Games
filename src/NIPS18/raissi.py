@@ -15,6 +15,7 @@ import torch.autograd as autograd
 from functools import reduce
 import math
 from collections import namedtuple
+import time
 
 
 cuda = False
@@ -83,7 +84,7 @@ class Net_Raissi(nn.Module):
     
     def hiddenLayer(self, nIn, nOut):
         layer = nn.Sequential(nn.Linear(nIn,nOut),
-                              nn.Sigmoid())
+                              nn.ReLU())
         return layer
         
     def forward(self, x):
@@ -117,7 +118,7 @@ output, output_grad = model(x)
 
 def train():
     
-    batch_size = 100
+    batch_size = 1000
     base_lr = 0.001
     dim = 100
     init_t = 0
@@ -128,7 +129,7 @@ def train():
     else:
         timegrid = Variable(torch.Tensor(np.arange(init_t, T+timestep/2, timestep)))
     
-    sigma = 1
+    sigma = math.sqrt(2)
     lambda_ = 1
     
     model = Net_Raissi(dim)
@@ -137,22 +138,31 @@ def train():
     if cuda:
         model.cuda()
     
-    n_iter = 1000  # to be changed
+    n_iter = 100  # to be changed
     output_model = namedtuple('output', ['v', 'grad_v'])
     
     for it in range(n_iter):
+        lr = base_lr * (0.5 ** (it // 50))
+        for param_group in optimizer.state_dict()['param_groups']:
+            param_group['lr'] = lr
         print(it)
         model.zero_grad()
         if cuda:
             x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
             t = Variable(torch.zeros((batch_size, 1)).cuda(), requires_grad=True)
         else:
-            x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
-            t = Variable(torch.zeros((batch_size, 1)), requires_grad=True)
+#            x = Variable(torch.zeros((batch_size, dim)), requires_grad=True)
+#            t = Variable(torch.zeros((batch_size, 1)), requires_grad=True)
+             x = torch.Tensor(np.random.uniform(low=-2,high=2,size=(batch_size, dim)))
+             x = Variable(x, requires_grad=True)
+             t = Variable(torch.zeros((batch_size, 1)), requires_grad=True)
 
         tx = torch.cat([t,x], dim=1)
         
+        init_time = time.time()
         v, grad_v  = model(tx) 
+        end_time = time.time()
+        print('time forward pass: {:.3f}'.format(end_time-init_time))
         brownian = [output_model(v, grad_v)]  # we will save the brownian path
         
         error = []
@@ -168,9 +178,10 @@ def train():
             if cuda:
                 h = round(h.cpu().data[0],2)
                 x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*math.sqrt(h)*xi
-                x = Variable(x.data, requires_grad=True)
+                #x = Variable(x.data, requires_grad=True)
             else:
                 x = x + (2*math.sqrt(lambda_)*alpha) * h + sigma*torch.sqrt(h)*xi # to complete - make it general for any LQR problem
+                #x = Variable(x.data, requires_grad=True)
             t = t+h#Variable(torch.ones((batch_size, dim)))*timegrid[i]
             t = Variable(t.data, requires_grad=True)
             tx = torch.cat([t,x], dim=1)
@@ -195,7 +206,10 @@ def train():
         loss = torch.sum(torch.norm(error,2,1)**2) + torch.sum(torch.norm(error_terminal,2,1)**2)
         
         # backpropagation
+        init_time = time.time()
         loss.backward()
+        end_time = time.time()
+        print('time backpropagation: {:.3f}'.format(end_time-init_time))
         
         # Optimizer step
         optimizer.step()
@@ -203,4 +217,11 @@ def train():
         # printing
         print('Iteration [{it}/{n_iter}\t loss={loss:.3f}'.format(it=it, n_iter=n_iter, loss=loss.data[0]))
         
+    # test
+    batch_size = 1
+    x = Variable(torch.zeros((batch_size, dim)).cuda(), requires_grad=True)
+    t = Variable(torch.zeros((batch_size, 1)).cuda(), requires_grad=True)    
+    tx = torch.cat([t,x], dim=1)
+    v, grad_v  = model(tx)
+
         
